@@ -14,3 +14,17 @@ These were intentionally out of scope for the foundation slice.
   pollution (Plan 2+ test infra).
 - **Minor (optional):** cache key does not collapse internal whitespace (affects hit
   rate only); `JSONFormatter` stamps format-time rather than `record.created`.
+
+## From Plan 2 final review (store & ingestion) — address in Plan 3
+- **`store.count()` private API** — `ChromaStore.count()` reaches `self._store._collection.count()`;
+  a `langchain-chroma` bump could break it. Fine on the pin; revisit if upgrading.
+- **Score type coercion** — `similarity_search_with_score` returns Chroma's raw distance,
+  which may be `numpy.float32`. Wrap in `float(score)` in Plan 3 before comparing against
+  `refusal_score_threshold`, so the refusal gate is portable.
+- **Stale-vector drift on corpus change** — the pipeline upserts by `chunk_id` and rewrites
+  the docstore fresh, so it is idempotent for a *fixed* corpus (proven by test). But if a
+  re-ingest ever yields fewer chunks for a page, or a source is removed, orphaned vectors
+  linger in Chroma and drift from the docstore. Add a `reset()` / delete-by-source hook to
+  `VectorStore` in Plan 3 (call before re-ingest, or clear-then-add).
+- **Cosmetic:** `load_text` uses `errors="replace"` (kept — robustness for real filings);
+  empty-text+table page leaves a leading blank line in the chunk.
