@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     vector_store: str = "chroma"
     chroma_dir: str = "data/chroma"
     data_dir: str = "data/docs"
+    embedding_cache_dir: str = "data/embeddings_cache"
+    doc_metadata_path: str = "data/doc_metadata.json"
+    docstore_path: str = "data/docstore.jsonl"
+    collection_name: str = "financial_reports"
+    metadata_extract_pages: int = 3
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
 
     # --- Retrieval ---
     retrieval_mode: str = "hybrid"
