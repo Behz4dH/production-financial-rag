@@ -59,10 +59,11 @@ production-rag/
 │   ├── core/                     # cross-cutting concerns
 │   │   ├── config.py             # pydantic-settings Settings + get_settings()
 │   │   ├── cache.py              # TTL response cache (reused from reference)
-│   │   ├── security.py           # input sanitization + PII masking (real middleware)
-│   │   ├── monitoring.py         # request/latency/token counters + metrics snapshot
+│   │   ├── security.py           # SecurePipeline: sanitize→PII→[guard]→validate
+│   │   ├── monitoring.py         # JSON metrics: requests/latency(p99)/tokens/cache
+│   │   ├── token_budget.py       # tiktoken token counting + per-request budget
 │   │   ├── logging.py            # structured JSON logging setup
-│   │   ├── retry.py              # exponential backoff + model fallback helper
+│   │   ├── reliability.py        # retry+jitter, circuit breaker, model fallback chain
 │   │   └── tracing.py            # LangSmith: per-request tracing with metadata
 │   ├── rag/                      # framework-free ML core (independently testable)
 │   │   ├── providers/
@@ -85,8 +86,10 @@ production-rag/
 │   ├── eval/
 │   │   ├── golden.py             # load ERC questions.json/answers.json
 │   │   ├── matching.py           # numeric tolerance + N/A + multi-valid-answer matching
+│   │   ├── evaluators.py         # {key,score} evaluators: correctness/refusal/faithfulness
 │   │   ├── metrics.py            # hit-rate@k, MRR; LLM-judge faithfulness/groundedness
-│   │   └── evaluate.py           # run all modes → per-category comparison table
+│   │   ├── evaluate.py           # local harness: run all modes → per-category table
+│   │   └── langsmith_eval.py     # optional: versioned dataset + evaluate() experiments
 │   ├── data/
 │   │   ├── docs/                 # the 20 ERC 10-K PDFs (copied in)
 │   │   ├── benchmark/            # questions.json, answers.json
@@ -109,35 +112,42 @@ production-rag/
 
 ### 3.1 `rag/providers`
 - **base.py** — `LLMProvider` protocol (`complete(messages) -> str`, exposes `model_name`); `EmbeddingsProvider` protocol (`embed_documents`, `embed_query`).
-- **factory.py** — `get_llm(settings)`, `get_embeddings(settings)`. Default: Groq `llama-3.1-8b-instant` + local `sentence-transformers` `BAAI/bge-small-en-v1.5`. Config selects provider; adding OpenAI is a new adapter, not a core change.
-- Depends on: `langchain-groq` / `langchain-huggingface` (or direct SDKs); `core.config`.
+- **factory.py** — `get_llm(settings)`, `get_embeddings(settings)`. Built on `init_chat_model(model, model_provider=..., max_retries=...)` (course `working_with_llms.py` pattern) so provider swap is a config value, not code. Default: Groq `llama-3.1-8b-instant` + local `sentence-transformers` `BAAI/bge-small-en-v1.5`. Adding OpenAI/Anthropic is a config change, not a core change.
+- **embeddings** are wrapped in **`CacheBackedEmbeddings` (LocalFileStore)** (course `embeddings_deep.py`) so re-ingestion never recomputes an unchanged chunk's vector.
+- Depends on: `langchain` (`init_chat_model`), `langchain-groq` / `langchain-huggingface`, `langchain-classic` (embedding cache); `core.config`.
 
 ### 3.2 `rag/ingestion`
-- **loaders.py** — dispatch by extension: PDF → `pypdf` for narrative text + `pdfplumber` for tables (serialized to markdown-ish text so tables survive chunking); `.md`/`.txt` → plain read.
+- **loaders.py** — dispatch by extension: PDF → `pypdf` for narrative text + `pdfplumber` for tables (serialized to markdown-ish text so tables survive chunking); `.md`/`.txt` → plain read. Batch a folder via `DirectoryLoader` + **`lazy_load`** (course `document_loaders.py`) to stream the 20 large 10-Ks without loading all pages into memory; page numbers preserved from the per-page loader.
 - **metadata.py** — best-effort extraction of **company name** and **fiscal year / reporting period** per document (from the first pages / cover). Attached to every chunk. This is what lets the system correctly refuse "wrong fiscal year" questions.
-- **chunking.py** — `RecursiveCharacterTextSplitter` (tuned size/overlap for financial text); preserves `{source, company, fiscal_year, page, chunk_id}`.
+- **chunking.py** — default `RecursiveCharacterTextSplitter` with explicit separators (tuned size/overlap for financial text); **`MarkdownHeaderTextSplitter`** for `.md` (structure-aware) and an optional **`TokenTextSplitter`** (token-aware, respects the embedding model's token window) — all from course `text_splitters.py`. Preserves `{source, company, fiscal_year, page, chunk_id}` via `split_documents`.
 - **pipeline.py** — `ingest(data_dir, store)`: load → chunk → embed → persist to Chroma; also builds/persists the BM25 corpus. Idempotent (safe re-run). Prints a summary (files, chunks, dims).
 - Runs offline via `python -m rag.ingestion` / `make ingest`.
 
 ### 3.3 `rag/retrieval`
-- **store.py** — `VectorStore` interface (`add`, `similarity_search`, `persist`, `load`); `ChromaStore` persistent impl. pgvector adapter documented as the swap point.
+- **store.py** — `VectorStore` interface (`add`, `similarity_search`, **`similarity_search_with_score`**, `persist`, `load`); `ChromaStore` persistent impl. Exposes **scores** (course `vector_stores.py` converts distance→similarity) so a low top-score can trigger refusal, and **metadata filtering** (`filter={"company": ..., "fiscal_year": ...}`) so a query can be constrained to the asked company/year — the primary lever that makes "wrong company / wrong year" questions resolve to `N/A` instead of a hallucinated number. Optional MMR (`search_type="mmr"`) for diversity. pgvector adapter documented as the swap point.
 - **hybrid.py** — weighted ensemble of BM25 (keyword) + vector (semantic) retrievers. Targets the "embedding mismatch" failure mode (financial jargon, exact company names).
 - **reranker.py** — cross-encoder (`BAAI/bge-reranker-base`) reorders top_k candidates to top_n. Targets "retrieval noise."
-- **agentic.py** — LangGraph `StateGraph`: `retrieve → grade → route`. The **grade node doubles as a refusal gate**: it checks whether retrieved chunks actually support the asked company + fiscal year. Routes to `rewrite→retry` (bounded by `max_retries`), `generate`, or a grounded `refuse` (N/A). Adapted from the course Part 6 agentic pattern, wired to *our* store.
+- **agentic.py** — LangGraph `StateGraph`: `retrieve → grade → route`. The **grade node doubles as a refusal gate**: it checks retrieval **score** and chunk **metadata** (does a chunk from the asked company + fiscal year actually exist?). Routes to `rewrite→retry` (bounded by `max_retries`), `generate`, or a grounded `refuse` (N/A). Adapted from the course Part 6 agentic pattern + the `error_handling.py` conditional-retry graph, wired to *our* store.
 - **retriever.py** — façade exposing `retrieve(query, mode)` where `mode ∈ {basic, hybrid, agentic}`, so the API and eval switch strategies uniformly.
 
 ### 3.4 `rag/generation`
-- **prompt.py** — refusal-first grounded template: "Answer ONLY from the provided report excerpts. If the company or the requested fiscal year is not present, answer exactly `N/A`. Cite company · fiscal year · page for every figure." Separate template variant for ratio computation (best-effort).
-- **generator.py** — formats retrieved chunks with source tags → calls LLM → returns `answer` + structured `citations[]`.
+- **prompt.py** — refusal-first grounded template: "Answer ONLY from the provided report excerpts. If the company or the requested fiscal year is not present, answer exactly `N/A`. Cite company · fiscal year · page for every figure." Separate template variant for ratio computation (best-effort). User text is passed as a **bound variable / message**, never `.format()`-ed into the template (structural injection defense).
+- **generator.py** — formats retrieved chunks with source tags → calls LLM via **`with_structured_output(RAGAnswer)`** (course `output_parsers_final.py`) returning a typed `RAGAnswer{answer: str, citations: list[Citation], refused: bool, computed_value: float | None, confidence: str}`. Structured output means the refusal flag and citations can't be lost in free-text parsing.
 
 ### 3.5 `core`
 - **config.py** — single `Settings(BaseSettings)`, `.env`-loaded, `@lru_cache` singleton, `is_production` property, `extra="ignore"`. Nothing outside this module reads env vars.
-- **cache.py** — TTL response cache with hit/miss stats (reused from reference, key normalized by query).
-- **security.py** — `InputSanitizer` (prompt-injection patterns) + `PIIDetector`. PII is masked on the **input path before the text ever reaches the LLM** (emails, phones, SSNs, credit cards, IPs) and re-checked on output; promoted from the reference's demo file into real request/response middleware.
-- **monitoring.py** — counters: total requests, errors, latency (avg/p99), tokens in/out, cache hit-rate; exposed via `/metrics`.
-- **logging.py** — **structured JSON logging** (one JSON object per log line, suitable for production log aggregation) honoring `log_level`; includes request id, mode, latency, and status per request.
-- **retry.py** — retry helper with **exponential backoff** for provider calls (bounded by `max_retries`), plus primary→fallback model escalation.
-- **tracing.py** — LangSmith setup; **every `/chat` request is traced with metadata** (thread_id, retrieval mode, model, cached flag, latency, token counts). No-op when `LANGSMITH_API_KEY` is absent.
+- **cache.py** — TTL response cache with hit/miss stats (reused from reference, key normalized by query). Semantic (embedding-similarity) caching documented as an enhancement (course `cost_optimization.py` `SemanticCache`), not built by default.
+- **security.py** — a full **defense-in-depth `SecurePipeline`** (matches and extends the course `security_patterns.py`), wired through the `providers` abstraction (not hardcoded to OpenAI), composed of four units:
+  1. `InputSanitizer` — prompt-injection regex screen + delimiter/brace neutralization, **plus structural isolation** (user text bound as a variable, never `.format()`-ed into the template).
+  2. `PIIDetector` — detect + mask email/phone/SSN/credit-card/IP on the **input path before the text reaches the LLM**; mask uses a `{type: replacement}` map (no repetitive if/elif).
+  3. `SecurityGuard` — optional LLM-as-guard using **`with_structured_output`** so parsing can't fail-open. **Config-gated (`enable_llm_guard`, default off)** to avoid an extra LLM call per request.
+  4. `OutputValidator` — re-checks output for PII leakage + harmful patterns before returning.
+  Every block/mask emits a structured security event + a `/metrics` counter. Flow: `sanitize → input-PII-mask → [LLM guard] → generate → output-validate`.
+- **monitoring.py** — `JSONFormatter` + `MetricsCollector` (course `monitoring.py`): total requests, errors, error_rate, latency (avg **+ p99, exceeding the course's avg-only**), tokens in/out, cache hit-rate; `get_summary()` maps 1:1 to the reference `HealthResponse`/`MetricsResponse`. Exposed via `/metrics`.
+- **token_budget.py** — `TokenBudget` (course `cost_optimization.py`): real token counting via **`tiktoken`**, per-request cap, and usage stats; rejects over-budget requests early.
+- **logging.py** — **structured JSON logging** via `JSONFormatter` (one JSON object per line, for log aggregation) honoring `log_level`; includes request id, mode, latency, status per request.
+- **reliability.py** — provider-call resilience, expanded to match `error_handling.py`: `with_retry` (**exponential backoff + jitter**), a **`CircuitBreaker`** (closed/open/half-open) around provider calls, and a **`FallbackChain`** (primary→fallback model escalation).
+- **tracing.py** — LangSmith setup (`@traceable` with **name + tags + metadata**, course `langsmith_setup.py`); **every `/chat` request is traced with metadata** (thread_id, retrieval mode, model, cached flag, latency, token counts). No-op when `LANGSMITH_API_KEY` is absent.
 
 ### 3.6 `app`
 - **main.py** — FastAPI app factory; lifespan loads settings, providers, and the persisted store once; wires CORS for the React dev origin.
@@ -149,8 +159,10 @@ production-rag/
 ### 3.7 `eval`
 - **golden.py** — parse `questions.json` + `answers.json` into typed records (`question, schema, answers[], category, comment`).
 - **matching.py** — verdict logic: numeric tolerance (relative), `N/A` matching, and multiple-valid-answer support (golden answers are lists).
-- **metrics.py** — retrieval: hit-rate@k, MRR (did a chunk from the right company/year get retrieved?). Answer: LLM-as-judge faithfulness/groundedness + correctness vs golden.
-- **evaluate.py** — run the benchmark across `basic | hybrid | agentic`, print a **per-category × per-mode** table. Headline: correct-refusal rate on `hallucination`.
+- **evaluators.py** — evaluators returning `{key, score}` (course `testing_patterns.py` interface): `correctness` (numeric/N-A match vs golden), `refusal_correctness` (did it correctly answer `N/A`?), and LLM-as-judge `faithfulness`/`groundedness`. Same functions feed both the local harness and LangSmith.
+- **metrics.py** — retrieval: hit-rate@k, MRR (did a chunk from the right company/year get retrieved?). Answer: aggregates the evaluators above.
+- **evaluate.py** — local harness: run the benchmark across `basic | hybrid | agentic`, print a **per-category × per-mode** table. Headline: correct-refusal rate on `hallucination`.
+- **langsmith_eval.py** — optional, key-gated (course `testing_patterns.py`): push the golden set as a **versioned LangSmith dataset**, run `evaluate()` once **per retrieval mode** with `experiment_prefix` so the three modes are comparable side-by-side in the LangSmith dashboard (basic vs hybrid vs agentic). Elevates eval from a one-off script to versioned, comparable experiments.
 
 ---
 
@@ -191,7 +203,7 @@ Every item below is a first-class deliverable of the API (Docker intentionally e
 | LangSmith tracing | Every request traced with metadata (mode, model, tokens, latency) | `core/tracing.py`, wraps `/chat` |
 | Input sanitization | Blocks prompt-injection attempts | `core/security.py` (`InputSanitizer`) |
 | PII detection/masking | Redacts emails, SSNs, cards **before** the LLM | `core/security.py` (`PIIDetector`), input path |
-| Error handling + retries | Exponential backoff + model fallbacks | `core/retry.py` |
+| Error handling + retries | Exponential backoff + jitter, circuit breaker, model fallbacks | `core/reliability.py` |
 | Response caching | In-memory cache for duplicate calls | `core/cache.py` |
 | Rate limiting | Per-IP throttling via slowapi | `app/rate_limit.py` |
 | Structured logging | JSON logs for production aggregation | `core/logging.py` |
@@ -203,7 +215,8 @@ Every item below is a first-class deliverable of the API (Docker intentionally e
 
 ## 6. Testing strategy
 pytest, with providers mocked so the suite runs **without any API key**:
-- Unit: chunking (metadata preserved), metadata extraction, cache (reuse reference tests), hybrid fusion ordering, reranker ordering, agentic routing/refusal logic (mocked grader), config validation, eval matching (numeric tolerance, N/A, multi-valid).
+- Unit: chunking (metadata preserved), metadata extraction, cache (reuse reference tests), hybrid fusion ordering, reranker ordering, agentic routing/refusal logic (mocked grader), config validation, eval matching (numeric tolerance, N/A, multi-valid), security pipeline (injection block + PII mask), reliability (retry backoff, circuit-breaker state transitions, fallback chain), token budget.
+- Mocking follows the course `testing_patterns.py` pattern: `Mock()` LLM returning `AIMessage(content=...)`, `assert_called_once()`.
 - API: `/chat`, `/health`, `/metrics` via `httpx` with mocked retriever/generator.
 - The ML core (`rag/`) is tested hardest — it is the differentiator.
 
@@ -225,7 +238,7 @@ Sample corpus (ERC 10-Ks + benchmark) ships in `data/`, so it works out of the b
 ---
 
 ## 8. Dependencies (backend)
-`fastapi`, `uvicorn`, `pydantic`, `pydantic-settings`, `python-dotenv`, `slowapi`, `langchain`, `langchain-core`, `langgraph`, `langchain-groq`, `langchain-huggingface`, `langchain-chroma`, `chromadb`, `sentence-transformers`, `rank-bm25`, `pypdf`, `pdfplumber`, `langsmith`, `tiktoken`; dev: `pytest`, `httpx`. Frontend: `vite`, `react`.
+`fastapi`, `uvicorn`, `pydantic`, `pydantic-settings`, `python-dotenv`, `slowapi`, `langchain`, `langchain-core`, `langgraph`, `langchain-groq`, `langchain-huggingface`, `langchain-chroma`, `langchain-classic` (`CacheBackedEmbeddings`, BM25), `chromadb`, `sentence-transformers`, `rank-bm25`, `pypdf`, `pdfplumber`, `numpy`, `langsmith`, `tiktoken`; dev: `pytest`, `httpx`. Frontend: `vite`, `react`.
 
 ---
 
@@ -243,4 +256,28 @@ Sample corpus (ERC 10-Ks + benchmark) ships in `data/`, so it works out of the b
 3. Hybrid+rerank measurably beats basic on retrieval metrics; agentic recovers a measurable share of hard queries.
 4. Clean module boundaries; `rag/` core unit-tested without a live API.
 5. README tells the story a reviewer can grasp in under two minutes.
-```
+
+---
+
+## 11. Course-file triage ledger (match / exceed)
+Result of reading every corresponding file in `production-course-main-code` (+ part-6) and comparing scope. "Exceed" = we add production integration the course file (a standalone demo) lacks.
+
+| Concern | Course file | Verdict | What we take / add beyond it |
+| --- | --- | --- | --- |
+| LLM/embeddings providers | `working_with_llms.py`, `embeddings_deep.py` | **Exceed** | `init_chat_model` provider-swap; add `CacheBackedEmbeddings`, protocol abstraction, config-driven selection |
+| Document loading | `document_loaders.py` | **Exceed** | `DirectoryLoader` + `lazy_load`; add `pdfplumber` table extraction + company/fiscal-year metadata |
+| Chunking | `text_splitters.py` | **Match+** | Recursive default; expose Markdown-header + token-aware options; carry financial metadata |
+| Vector store | `vector_stores.py` | **Exceed** | `similarity_search_with_score` + **metadata filtering (company/year)** driving refusal; persistent store behind an interface; pgvector seam |
+| Advanced retrieval | `advanced_rag.py` | **Match+** | BM25+vector ensemble + compression ideas; add cross-encoder rerank + mode façade |
+| Agentic RAG | part-6 `04_agentic_rag.py`, `error_handling.py` | **Match+** | Grade→rewrite→generate loop; **grade node repurposed as a score+metadata refusal gate** |
+| Generation / structured output | `rag_pipeline.py`, `output_parsers_final.py` | **Exceed** | `with_structured_output(RAGAnswer)` (answer/citations/refused/computed_value); refusal-first grounded prompt |
+| Security | `security_patterns.py` | **Match+** | Full `SecurePipeline`; add structural injection isolation, structured-output guard, provider abstraction, metrics/logging |
+| Reliability | `error_handling.py` | **Match** | retry+jitter, circuit breaker, fallback chain |
+| Monitoring / logging | `monitoring.py` | **Exceed** | `JSONFormatter` + `MetricsCollector`; add p99 latency; map to `/metrics` + `/health` |
+| Caching | `cost_optimization.py` | **Match+** | TTL response cache; semantic-cache + model-routing documented as enhancements |
+| Cost / tokens | `cost_optimization.py` | **Match** | `TokenBudget` with `tiktoken`, per-request cap + usage stats |
+| Tracing | `langsmith_setup.py` | **Match** | `@traceable` name+tags+metadata; per-request `/chat` trace |
+| Testing | `testing_patterns.py` | **Match** | Mock-LLM units + regression harness pattern |
+| Evaluation | `testing_patterns.py` | **Exceed** | Local per-category harness **plus** versioned LangSmith dataset + `evaluate()` experiments per mode |
+| Contextual retrieval / late chunking / multimodal | part-6 `02/03/06` | **Deferred** | Out of scope; multimodal informs the `pdfplumber` decision; noted as limitations |
+
