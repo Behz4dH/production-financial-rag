@@ -412,8 +412,14 @@ class ChromaStore(VectorStore):
         )
 
     def add(self, docs: list[Document]) -> None:
-        if docs:
-            self._store.add_documents(docs)
+        if not docs:
+            return
+        # Use deterministic chunk_id as the vector id so re-ingesting the same
+        # corpus upserts (no duplicates) rather than appending.
+        ids = [d.metadata["chunk_id"] for d in docs] if all(
+            "chunk_id" in d.metadata for d in docs
+        ) else None
+        self._store.add_documents(docs, ids=ids)
 
     def similarity_search(
         self, query: str, k: int = 5, filter: dict | None = None
@@ -1051,7 +1057,7 @@ def test_ingest_populates_store_and_docstore(tmp_path):
     assert set(md_cache.keys()) == {"a.txt", "b.md"}
 
 
-def test_ingest_rewrites_docstore_each_run(tmp_path):
+def test_reingest_is_idempotent(tmp_path):
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "a.txt").write_text("Total assets " * 60, encoding="utf-8")
@@ -1059,8 +1065,16 @@ def test_ingest_rewrites_docstore_each_run(tmp_path):
     store = ChromaStore(_HashEmbeddings(), settings.chroma_dir, settings.collection_name)
 
     s1 = pipeline.ingest(settings, store, _FakeLLM())
+    count_after_first = store.count()
     lines_after_first = Path(settings.docstore_path).read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines_after_first) == s1["chunks"]
+    assert len(lines_after_first) == s1["chunks"] == count_after_first
+
+    # Re-ingesting the same corpus must NOT duplicate vectors (deterministic
+    # chunk_id upserts) and must rewrite the docstore fresh (not append).
+    s2 = pipeline.ingest(settings, store, _FakeLLM())
+    assert store.count() == count_after_first
+    lines_after_second = Path(settings.docstore_path).read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines_after_second) == s2["chunks"] == count_after_first
 ```
 
 - [ ] **Step 2: Run test to verify it fails**

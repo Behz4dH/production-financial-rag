@@ -10,8 +10,11 @@ venv/
 # Env / secrets
 .env
 
-# RAG artifacts
+# RAG artifacts (generated — do not commit)
 backend/data/chroma/
+backend/data/embeddings_cache/
+backend/data/docstore.jsonl
+backend/data/doc_metadata.json
 **/chroma/
 
 # Node / frontend
