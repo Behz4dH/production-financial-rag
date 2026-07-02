@@ -31,7 +31,7 @@ def ingest(settings: Settings, store: VectorStore, llm) -> dict:
             source = pages[0].metadata.get("source", "unknown")
             md = load_or_extract(
                 source, pages, llm, settings.doc_metadata_path,
-                settings.metadata_extract_pages,
+                settings.metadata_extract_pages, settings.metadata_extract_chars,
             )
             chunks = chunk_pages(pages, md, settings.chunk_size, settings.chunk_overlap)
             store.add(chunks)

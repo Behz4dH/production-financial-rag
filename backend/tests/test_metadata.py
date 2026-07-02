@@ -38,6 +38,17 @@ def test_first_pages_text_concatenates_n_pages():
     assert "page 1" in text and "page 3" in text and "page 4" not in text
 
 
+def test_first_pages_text_truncates_to_max_chars():
+    pages = [Document(page_content="x" * 10000, metadata={"page": 1})]
+    text = M.first_pages_text(pages, 1, max_chars=5000)
+    assert len(text) == 5000
+
+
+def test_first_pages_text_no_truncation_when_under_cap():
+    pages = [Document(page_content="short", metadata={"page": 1})]
+    assert M.first_pages_text(pages, 1, max_chars=5000) == "short"
+
+
 def test_extract_metadata_calls_structured_output():
     llm = _FakeLLM(_md())
     md = M.extract_metadata("TransUnion 2022 annual report ...", llm)

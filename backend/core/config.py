@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     docstore_path: str = "data/docstore.jsonl"
     collection_name: str = "financial_reports"
     metadata_extract_pages: int = 3
+    metadata_extract_chars: int = 5000
     chunk_size: int = 1000
     chunk_overlap: int = 150
 

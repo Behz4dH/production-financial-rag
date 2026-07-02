@@ -36,8 +36,17 @@ class DocumentMetadata(BaseModel):
     report_type: str | None = Field(default=None, description="e.g. '10-K', 'Annual Report'")
 
 
-def first_pages_text(pages: list[Document], n: int) -> str:
-    return "\n\n".join(p.page_content for p in pages[:n])
+def first_pages_text(pages: list[Document], n: int, max_chars: int | None = None) -> str:
+    """Concatenate the first ``n`` pages, optionally truncated to ``max_chars``.
+
+    The truncation bounds the tokens sent to the LLM for metadata extraction —
+    dense filings can otherwise exceed provider per-request/rate limits, and the
+    reporting entity / fiscal year / currency all appear on the opening pages.
+    """
+    text = "\n\n".join(p.page_content for p in pages[:n])
+    if max_chars is not None and len(text) > max_chars:
+        return text[:max_chars]
+    return text
 
 
 def extract_metadata(doc_text: str, llm) -> DocumentMetadata:
@@ -58,13 +67,14 @@ def load_or_extract(
     llm,
     cache_path: str,
     n_pages: int,
+    max_chars: int | None = None,
 ) -> DocumentMetadata:
     path = Path(cache_path)
     cache = _read_cache(path)
     if source_name in cache:
         return DocumentMetadata(**cache[source_name])
 
-    md = extract_metadata(first_pages_text(pages, n_pages), llm)
+    md = extract_metadata(first_pages_text(pages, n_pages, max_chars), llm)
     cache[source_name] = md.model_dump()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8")
