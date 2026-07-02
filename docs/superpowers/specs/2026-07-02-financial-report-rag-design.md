@@ -61,7 +61,9 @@ production-rag/
 │   │   ├── cache.py              # TTL response cache (reused from reference)
 │   │   ├── security.py           # input sanitization + PII masking (real middleware)
 │   │   ├── monitoring.py         # request/latency/token counters + metrics snapshot
-│   │   └── logging.py            # structured logging setup
+│   │   ├── logging.py            # structured JSON logging setup
+│   │   ├── retry.py              # exponential backoff + model fallback helper
+│   │   └── tracing.py            # LangSmith: per-request tracing with metadata
 │   ├── rag/                      # framework-free ML core (independently testable)
 │   │   ├── providers/
 │   │   │   ├── base.py           # LLMProvider, EmbeddingsProvider protocols
@@ -131,9 +133,11 @@ production-rag/
 ### 3.5 `core`
 - **config.py** — single `Settings(BaseSettings)`, `.env`-loaded, `@lru_cache` singleton, `is_production` property, `extra="ignore"`. Nothing outside this module reads env vars.
 - **cache.py** — TTL response cache with hit/miss stats (reused from reference, key normalized by query).
-- **security.py** — `InputSanitizer` (prompt-injection patterns) + `PIIDetector` (mask email/phone/SSN/etc.), promoted from the reference's demo file into real request/response middleware.
+- **security.py** — `InputSanitizer` (prompt-injection patterns) + `PIIDetector`. PII is masked on the **input path before the text ever reaches the LLM** (emails, phones, SSNs, credit cards, IPs) and re-checked on output; promoted from the reference's demo file into real request/response middleware.
 - **monitoring.py** — counters: total requests, errors, latency (avg/p99), tokens in/out, cache hit-rate; exposed via `/metrics`.
-- **logging.py** — structured logging honoring `log_level`.
+- **logging.py** — **structured JSON logging** (one JSON object per log line, suitable for production log aggregation) honoring `log_level`; includes request id, mode, latency, and status per request.
+- **retry.py** — retry helper with **exponential backoff** for provider calls (bounded by `max_retries`), plus primary→fallback model escalation.
+- **tracing.py** — LangSmith setup; **every `/chat` request is traced with metadata** (thread_id, retrieval mode, model, cached flag, latency, token counts). No-op when `LANGSMITH_API_KEY` is absent.
 
 ### 3.6 `app`
 - **main.py** — FastAPI app factory; lifespan loads settings, providers, and the persisted store once; wires CORS for the React dev origin.
@@ -173,11 +177,27 @@ LangSmith tracing wraps retrieval + generation when `LANGSMITH_API_KEY` is prese
 
 ## 5. Error handling & production concerns
 - Global exception handler → structured `ErrorResponse` (never a raw 500).
-- Provider timeout/failure → retry up to `max_retries`, then primary→fallback model.
+- Provider timeout/failure → retry up to `max_retries` with **exponential backoff**, then primary→fallback model.
 - Empty or low-relevance retrieval, or company/fiscal-year mismatch → explicit grounded **`N/A`** (not a hallucination).
 - Rate-limit exceeded → HTTP 429.
-- Input sanitization + output PII masking on by default.
+- Input sanitization + **input-side PII masking (before the LLM)** + output re-check, on by default.
 - Config validation fails fast at startup (missing required `groq_api_key` → clear error).
+
+### 5.1 Production-Ready API checklist coverage
+Every item below is a first-class deliverable of the API (Docker intentionally excluded per scope):
+
+| Feature | What it does | Where |
+| --- | --- | --- |
+| LangSmith tracing | Every request traced with metadata (mode, model, tokens, latency) | `core/tracing.py`, wraps `/chat` |
+| Input sanitization | Blocks prompt-injection attempts | `core/security.py` (`InputSanitizer`) |
+| PII detection/masking | Redacts emails, SSNs, cards **before** the LLM | `core/security.py` (`PIIDetector`), input path |
+| Error handling + retries | Exponential backoff + model fallbacks | `core/retry.py` |
+| Response caching | In-memory cache for duplicate calls | `core/cache.py` |
+| Rate limiting | Per-IP throttling via slowapi | `app/rate_limit.py` |
+| Structured logging | JSON logs for production aggregation | `core/logging.py` |
+| Metrics collection | Request count, latency, token usage | `core/monitoring.py`, `GET /metrics` |
+| Health checks | `/health` endpoint | `app/routes.py` |
+| Docker deployment | Optional (`Dockerfile` + compose), not required | repo root (optional) |
 
 ---
 
