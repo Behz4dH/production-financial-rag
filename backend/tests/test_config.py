@@ -5,6 +5,23 @@ import pytest
 from core.config import Settings, get_settings
 
 
+@pytest.fixture(autouse=True)
+def _groq_api_key_env(request, monkeypatch):
+    """Isolate GROQ_API_KEY handling for this module only.
+
+    test_required_key_missing_raises needs NO key present so that
+    Settings(_env_file=None) actually raises. Every other test in this
+    module calls bare Settings()/get_settings() and needs a dummy key so
+    it doesn't depend on a real .env file or network access. Scoped to
+    this module (not conftest.py) so it can't leak into unrelated tests
+    elsewhere in the suite.
+    """
+    if request.node.name == "test_required_key_missing_raises":
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("GROQ_API_KEY", "test-api-key")
+
+
 def _make(**overrides) -> Settings:
     """Build Settings without reading a .env file, with a required key default."""
     base = {"groq_api_key": "test-key", "_env_file": None}
