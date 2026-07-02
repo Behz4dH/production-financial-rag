@@ -30,8 +30,8 @@ class _CountingEmbeddings(Embeddings):
 def test_get_llm_uses_init_chat_model_with_settings(monkeypatch):
     captured = {}
 
-    def fake_init(model, model_provider=None, temperature=None, max_retries=None, **kw):
-        captured.update(model=model, provider=model_provider,
+    def fake_init(model, model_provider=None, api_key=None, temperature=None, max_retries=None, **kw):
+        captured.update(model=model, provider=model_provider, api_key=api_key,
                         temperature=temperature, max_retries=max_retries)
         return "FAKE_LLM"
 
@@ -41,6 +41,7 @@ def test_get_llm_uses_init_chat_model_with_settings(monkeypatch):
     assert llm == "FAKE_LLM"
     assert captured["model"] == "llama-3.1-8b-instant"
     assert captured["provider"] == "groq"
+    assert captured["api_key"] == "test-key"
     assert captured["max_retries"] == 5
 
 

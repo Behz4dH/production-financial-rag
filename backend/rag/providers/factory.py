@@ -20,6 +20,7 @@ def get_llm(settings: Settings | None = None) -> LLM:
     return init_chat_model(
         model=settings.primary_model,
         model_provider=settings.llm_provider,
+        api_key=settings.groq_api_key,
         temperature=0,
         max_retries=settings.max_retries,
     )
@@ -31,10 +32,6 @@ def _build_base_embeddings(settings: Settings) -> EmbeddingsModel:
         from langchain_huggingface import HuggingFaceEmbeddings
 
         return HuggingFaceEmbeddings(model_name=settings.embedding_model)
-    if settings.embedding_provider == "openai":
-        from langchain_openai import OpenAIEmbeddings
-
-        return OpenAIEmbeddings(model=settings.embedding_model)
     raise ValueError(f"Unknown embedding_provider: {settings.embedding_provider}")
 
 
@@ -44,5 +41,5 @@ def get_embeddings(settings: Settings | None = None) -> EmbeddingsModel:
     Path(settings.embedding_cache_dir).mkdir(parents=True, exist_ok=True)
     store = LocalFileStore(settings.embedding_cache_dir)
     return CacheBackedEmbeddings.from_bytes_store(
-        base, store, namespace=settings.embedding_model
+        base, store, namespace=settings.embedding_model, key_encoder="sha256"
     )
