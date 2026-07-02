@@ -6,7 +6,7 @@ from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 _PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -26,14 +26,22 @@ _PROMPT = ChatPromptTemplate.from_messages(
 
 class DocumentMetadata(BaseModel):
     company_name: str = Field(description="Reporting entity's name")
-    aliases: list[str] = Field(default_factory=list,
-                               description="Other names/legal forms for the same entity")
+    # Nullable in the schema because small models emit `null` (not `[]`) for an
+    # empty list, and strict tool-schema validation (e.g. Groq) rejects null
+    # against a non-nullable array before Pydantic ever runs. Coerced to [] below.
+    aliases: list[str] | None = Field(default=None,
+                                      description="Other names/legal forms for the same entity")
     ticker: str | None = Field(default=None, description="Stock ticker if stated")
     fiscal_year: str = Field(description="Fiscal year the statements cover, e.g. '2022'")
     period_end_date: str | None = Field(default=None,
                                         description="Fiscal period end, ISO date if known")
     reporting_currency: str | None = Field(default=None, description="ISO currency code")
     report_type: str | None = Field(default=None, description="e.g. '10-K', 'Annual Report'")
+
+    @field_validator("aliases", mode="before")
+    @classmethod
+    def _null_aliases_to_empty(cls, v: object) -> list:
+        return v or []
 
 
 def first_pages_text(pages: list[Document], n: int, max_chars: int | None = None) -> str:
