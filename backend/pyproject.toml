@@ -1,0 +1,39 @@
+[project]
+name = "financial-rag"
+version = "0.1.0"
+description = "Hallucination-resistant Financial-Report RAG over SEC 10-K filings"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.138.0",
+    "uvicorn>=0.49.0",
+    "pydantic>=2.13.0",
+    "pydantic-settings>=2.14.0",
+    "python-dotenv>=1.2.0",
+    "slowapi>=0.1.10",
+    "langchain>=1.2.0",
+    "langchain-core>=1.3.0",
+    "langgraph>=1.2.0",
+    "langchain-groq>=0.3.0",
+    "langchain-huggingface>=1.2.0",
+    "langchain-chroma>=1.1.0",
+    "langchain-classic>=1.0.0",
+    "chromadb>=1.5.0",
+    "sentence-transformers>=5.0.0",
+    "rank-bm25>=0.2.2",
+    "pypdf>=6.0.0",
+    "pdfplumber>=0.11.0",
+    "numpy>=2.0.0",
+    "langsmith>=0.9.0",
+    "tiktoken>=0.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0",
+    "httpx>=0.28.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
