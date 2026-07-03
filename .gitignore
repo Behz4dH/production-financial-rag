@@ -14,8 +14,9 @@ venv/
 backend/data/chroma/
 backend/data/embeddings_cache/
 backend/data/docstore.jsonl
-backend/data/doc_metadata.json
 **/chroma/
+# NOTE: backend/data/doc_metadata.json IS committed — it is hand-curated
+# ground truth (the single source of truth for entity metadata).
 
 # Node / frontend
 node_modules/
