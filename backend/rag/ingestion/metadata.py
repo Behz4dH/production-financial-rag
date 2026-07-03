@@ -17,7 +17,8 @@ _PROMPT = ChatPromptTemplate.from_messages(
             "company the report is FOR, not its auditor, exchange, or subsidiaries). "
             "Use the fiscal year the financial statements cover. If a field is not "
             "stated, leave it null. Currency is the reporting currency of the primary "
-            "financial statements (ISO code like USD, EUR, GBP, JPY, CHF).",
+            "financial statements (ISO code like USD, EUR, GBP, JPY, CHF)."
+            "be careful about rotated or mirrored text like report coming off as troper.",
         ),
         ("human", "Opening pages:\n\n{text}"),
     ]
