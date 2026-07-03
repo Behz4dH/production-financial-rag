@@ -1,54 +1,66 @@
-"""Load PDFs (pypdf text + pdfplumber tables best-effort) and text files.
+"""Load PDFs (PyMuPDF text + real table detection) and plain text files.
 
-pypdf reliably extracts the narrative text and inline financial figures.
-pdfplumber table detection is line-based and often finds nothing in
-whitespace-aligned financial statements — it is a best-effort bonus, never
-a requirement (the numbers are already in the pypdf text).
+PyMuPDF's ``find_tables()`` detects the borderless, whitespace-aligned tables
+in financial statements that line-based extractors miss, and renders them as
+Markdown so rows/columns survive chunking. Detected table regions are
+subtracted from the narrative text so the same figures are not duplicated.
+
+Interface note: one Document *per page* (metadata ``{source, page}``). The
+extraction engine is an internal detail; the page-oriented contract that
+chunking, metadata extraction, and page-level citations depend on is unchanged.
 """
 
 from collections.abc import Iterator
 from pathlib import Path
 
-import pdfplumber
-import pypdf
+import pymupdf
 from langchain_core.documents import Document
 
 _TEXT_EXT = {".md", ".txt"}
 
 
-def serialize_tables(tables: list) -> str:
-    lines: list[str] = []
-    for table in tables or []:
-        for row in table or []:
-            cells = [("" if c is None else str(c).strip()) for c in row]
-            if any(cells):
-                lines.append(" | ".join(cells))
-    return "\n".join(lines)
+def _is_genuine_table(table) -> bool:
+    """A genuine table has >= 2 rows AND >= 2 columns.
+
+    ``find_tables()`` over-detects, boxing prose (e.g. a chairman's letter) as a
+    single-column 'table'; this filter rejects those. Only *kept* tables are
+    subtracted from the narrative, so anything filtered out still survives as
+    text.
+    """
+    return table.row_count >= 2 and table.col_count >= 2
 
 
 def load_pdf(path: str | Path) -> list[Document]:
     path = Path(path)
-    reader = pypdf.PdfReader(str(path))
-    # Best-effort table extraction; tolerate any pdfplumber failure.
-    tables_by_page: dict[int, str] = {}
+    doc = pymupdf.open(str(path))
     try:
-        with pdfplumber.open(str(path)) as pdf:
-            for i, page in enumerate(pdf.pages):
-                serialized = serialize_tables(page.extract_tables())
-                if serialized:
-                    tables_by_page[i] = serialized
-    except Exception:
-        tables_by_page = {}
+        out: list[Document] = []
+        for page in doc:
+            tables = [t for t in page.find_tables().tables if _is_genuine_table(t)]
+            tables_md = "\n\n".join(t.to_markdown() for t in tables)
+            boxes = [pymupdf.Rect(t.bbox) for t in tables]
 
-    docs: list[Document] = []
-    for i, page in enumerate(reader.pages):
-        text = page.extract_text() or ""
-        table_text = tables_by_page.get(i, "")
-        content = text if not table_text else f"{text}\n\n{table_text}"
-        docs.append(
-            Document(page_content=content, metadata={"source": path.name, "page": i + 1})
-        )
-    return docs
+            if boxes:
+                # Narrative = text blocks whose box is not inside any table region.
+                blocks = page.get_text("blocks")
+                narrative = "\n".join(
+                    b[4]
+                    for b in blocks
+                    if not any(pymupdf.Rect(b[:4]) in bx for bx in boxes)
+                )
+            else:
+                narrative = page.get_text()
+
+            content = narrative if not tables_md else f"{narrative}\n\n{tables_md}"
+            out.append(
+                Document(
+                    page_content=content,
+                    metadata={"source": path.name, "page": page.number + 1},
+                )
+            )
+        return out
+    finally:
+        doc.close()
 
 
 def load_text(path: str | Path) -> list[Document]:
