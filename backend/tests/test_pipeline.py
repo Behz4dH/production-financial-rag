@@ -61,16 +61,19 @@ def test_ingest_populates_store_and_docstore(tmp_path):
     assert summary["chunks"] > 2
     assert store.count() == summary["chunks"]
 
-    # Docstore JSONL has one line per chunk, each with entity metadata.
+    # Docstore JSONL has one line per chunk; chunk metadata carries only the
+    # back-reference keys, NOT entity fields (those live in doc_metadata.json).
     lines = Path(settings.docstore_path).read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == summary["chunks"]
     first = json.loads(lines[0])
-    assert first["metadata"]["company"] == "TestCorp"
+    assert set(first["metadata"].keys()) == {"source", "page", "chunk_id"}
+    assert "company" not in first["metadata"]
     assert "page_content" in first
 
-    # doc_metadata.json cached for both sources.
+    # doc_metadata.json is the single source of truth for entity attributes.
     md_cache = json.loads(Path(settings.doc_metadata_path).read_text(encoding="utf-8"))
     assert set(md_cache.keys()) == {"a.txt", "b.md"}
+    assert md_cache["a.txt"]["company_name"] == "TestCorp"
 
 
 def test_reingest_is_idempotent(tmp_path):

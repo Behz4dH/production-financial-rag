@@ -72,13 +72,14 @@ production-rag/
 │   │   ├── ingestion/
 │   │   │   ├── loaders.py        # pypdf text + pdfplumber tables, by extension
 │   │   │   ├── metadata.py       # extract company name + fiscal year per doc
-│   │   │   ├── chunking.py       # RecursiveCharacterTextSplitter + metadata
+│   │   │   ├── chunking.py       # splitter; chunk metadata = {source, page, chunk_id} only
 │   │   │   └── pipeline.py       # ingest(data_dir): load→chunk→embed→persist (idempotent)
 │   │   ├── retrieval/
-│   │   │   ├── store.py          # VectorStore interface + ChromaStore impl
+│   │   │   ├── store.py          # VectorStore interface + ChromaStore (filter by source)
+│   │   │   ├── entity_resolver.py # company/year → source via doc_metadata.json (refusal lever)
 │   │   │   ├── hybrid.py         # BM25 ⊕ vector ensemble (weighted)
 │   │   │   ├── reranker.py       # cross-encoder rerank (top_k → top_n)
-│   │   │   ├── agentic.py        # LangGraph: retrieve→grade→[rewrite→retry]→generate/refuse
+│   │   │   ├── agentic.py        # LangGraph: resolve→retrieve→grade→[rewrite]→generate/refuse
 │   │   │   └── retriever.py      # façade; mode = basic | hybrid | agentic
 │   │   └── generation/
 │   │       ├── prompt.py         # refusal-first grounded prompt templates
@@ -117,17 +118,18 @@ production-rag/
 - Depends on: `langchain` (`init_chat_model`), `langchain-groq` / `langchain-huggingface`, `langchain-classic` (embedding cache); `core.config`.
 
 ### 3.2 `rag/ingestion`
-- **loaders.py** — dispatch by extension: PDF → `pypdf` for narrative text + `pdfplumber` for tables (serialized to markdown-ish text so tables survive chunking); `.md`/`.txt` → plain read. Batch a folder via `DirectoryLoader` + **`lazy_load`** (course `document_loaders.py`) to stream the 20 large 10-Ks without loading all pages into memory; page numbers preserved from the per-page loader.
-- **metadata.py** — best-effort extraction of **company name** and **fiscal year / reporting period** per document (from the first pages / cover). Attached to every chunk. This is what lets the system correctly refuse "wrong fiscal year" questions.
-- **chunking.py** — default `RecursiveCharacterTextSplitter` with explicit separators (tuned size/overlap for financial text); **`MarkdownHeaderTextSplitter`** for `.md` (structure-aware) and an optional **`TokenTextSplitter`** (token-aware, respects the embedding model's token window) — all from course `text_splitters.py`. Preserves `{source, company, fiscal_year, page, chunk_id}` via `split_documents`.
+- **loaders.py** — dispatch by extension: PDF → **PyMuPDF** (`find_tables()` renders genuine ≥2×2 tables as **Markdown**, and their regions are subtracted from the narrative to avoid duplication); `.md`/`.txt` → plain read. One Document **per page** (`{source, page}`); folder streamed lazily. PyMuPDF detects the borderless financial tables that line-based extractors miss (pdfplumber found 0; PyMuPDF finds dozens per filing, incl. currency in table headers).
+- **metadata.py** — best-effort LLM extraction (`with_structured_output`) of **company name, aliases, fiscal year, period-end, reporting currency** per document, cached to **`doc_metadata.json` — the single source of truth for entity attributes** (NOT copied onto chunks). Resolved at query time; correcting an entry never requires re-embedding.
+- **chunking.py** — `RecursiveCharacterTextSplitter` with explicit separators (tuned size/overlap for financial text). Chunk metadata carries **only `{source, page, chunk_id}`** — a back-reference to the source document, deliberately **not** the entity fields (those stay in `doc_metadata.json`; denormalizing them onto chunks would force a re-ingest on every metadata edit).
 - **pipeline.py** — `ingest(data_dir, store)`: load → chunk → embed → persist to Chroma; also builds/persists the BM25 corpus. Idempotent (safe re-run). Prints a summary (files, chunks, dims).
 - Runs offline via `python -m rag.ingestion` / `make ingest`.
 
 ### 3.3 `rag/retrieval`
-- **store.py** — `VectorStore` interface (`add`, `similarity_search`, **`similarity_search_with_score`**, `persist`, `load`); `ChromaStore` persistent impl. Exposes **scores** (course `vector_stores.py` converts distance→similarity) so a low top-score can trigger refusal, and **metadata filtering** (`filter={"company": ..., "fiscal_year": ...}`) so a query can be constrained to the asked company/year — the primary lever that makes "wrong company / wrong year" questions resolve to `N/A` instead of a hallucinated number. Optional MMR (`search_type="mmr"`) for diversity. pgvector adapter documented as the swap point.
+- **store.py** — `VectorStore` interface (`add`, `similarity_search`, **`similarity_search_with_score`**, `count`); `ChromaStore` persistent impl. Exposes **scores** (distance→similarity) so a low top-score can trigger refusal, and **metadata filtering by `source`** so a query can be constrained to specific documents. Optional MMR for diversity. pgvector adapter documented as the swap point.
+- **entity_resolver.py** — resolves the asked **company + fiscal year → matching `source` file(s)** by looking them up in `doc_metadata.json` (with alias matching). This is the refusal lever: if no source matches the asked company/year, the answer is `N/A` *before any retrieval*; if a source matches, retrieval is filtered to it by `source`. Entity attributes are read from the single source of truth at query time — never denormalized onto chunks.
 - **hybrid.py** — weighted ensemble of BM25 (keyword) + vector (semantic) retrievers. Targets the "embedding mismatch" failure mode (financial jargon, exact company names).
 - **reranker.py** — cross-encoder (`BAAI/bge-reranker-base`) reorders top_k candidates to top_n. Targets "retrieval noise."
-- **agentic.py** — LangGraph `StateGraph`: `retrieve → grade → route`. The **grade node doubles as a refusal gate**: it checks retrieval **score** and chunk **metadata** (does a chunk from the asked company + fiscal year actually exist?). Routes to `rewrite→retry` (bounded by `max_retries`), `generate`, or a grounded `refuse` (N/A). Adapted from the course Part 6 agentic pattern + the `error_handling.py` conditional-retry graph, wired to *our* store.
+- **agentic.py** — LangGraph `StateGraph`: `resolve-entity → retrieve → grade → route`. The **entity resolver + grade node form the refusal gate**: if `doc_metadata.json` has no source for the asked company/fiscal-year, refuse (`N/A`) up front; otherwise retrieve (filtered by `source`) and grade retrieval **score**. Routes to `rewrite→retry` (bounded by `max_retries`), `generate`, or `refuse`. Adapted from the course Part 6 agentic pattern + the `error_handling.py` conditional-retry graph.
 - **retriever.py** — façade exposing `retrieve(query, mode)` where `mode ∈ {basic, hybrid, agentic}`, so the API and eval switch strategies uniformly.
 
 ### 3.4 `rag/generation`
@@ -265,9 +267,9 @@ Result of reading every corresponding file in `production-course-main-code` (+ p
 | Concern | Course file | Verdict | What we take / add beyond it |
 | --- | --- | --- | --- |
 | LLM/embeddings providers | `working_with_llms.py`, `embeddings_deep.py` | **Exceed** | `init_chat_model` provider-swap; add `CacheBackedEmbeddings`, protocol abstraction, config-driven selection |
-| Document loading | `document_loaders.py` | **Exceed** | `DirectoryLoader` + `lazy_load`; add `pdfplumber` table extraction + company/fiscal-year metadata |
+| Document loading | `document_loaders.py` | **Exceed** | `DirectoryLoader` + `lazy_load`; **PyMuPDF `find_tables()`→Markdown** + bbox subtraction (real table extraction where line-based finds none) |
 | Chunking | `text_splitters.py` | **Match+** | Recursive default; expose Markdown-header + token-aware options; carry financial metadata |
-| Vector store | `vector_stores.py` | **Exceed** | `similarity_search_with_score` + **metadata filtering (company/year)** driving refusal; persistent store behind an interface; pgvector seam |
+| Vector store | `vector_stores.py` | **Exceed** | `similarity_search_with_score` + **filter by `source`** (company/year resolved from `doc_metadata.json`, not denormalized onto chunks); persistent store behind an interface; pgvector seam |
 | Advanced retrieval | `advanced_rag.py` | **Match+** | BM25+vector ensemble + compression ideas; add cross-encoder rerank + mode façade |
 | Agentic RAG | part-6 `04_agentic_rag.py`, `error_handling.py` | **Match+** | Grade→rewrite→generate loop; **grade node repurposed as a score+metadata refusal gate** |
 | Generation / structured output | `rag_pipeline.py`, `output_parsers_final.py` | **Exceed** | `with_structured_output(RAGAnswer)` (answer/citations/refused/computed_value); refusal-first grounded prompt |

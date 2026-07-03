@@ -29,11 +29,13 @@ def ingest(settings: Settings, store: VectorStore, llm) -> dict:
             if not pages:
                 continue
             source = pages[0].metadata.get("source", "unknown")
+            # Extract entity metadata into doc_metadata.json (the single source
+            # of truth, resolved at query time) — NOT copied onto the chunks.
             md = load_or_extract(
                 source, pages, llm, settings.doc_metadata_path,
                 settings.metadata_extract_pages, settings.metadata_extract_chars,
             )
-            chunks = chunk_pages(pages, md, settings.chunk_size, settings.chunk_overlap)
+            chunks = chunk_pages(pages, settings.chunk_size, settings.chunk_overlap)
             store.add(chunks)
             for c in chunks:
                 fh.write(json.dumps(
