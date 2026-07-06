@@ -60,3 +60,18 @@ def test_answer_generates_when_resolved(tmp_path):
     result = answer_linear("assets of CrossFirst Bank in 2022?", "hybrid", deps)
     assert result.refused is False
     assert "5B" in result.answer
+
+
+def test_answer_dispatches_agentic(tmp_path):
+    from rag.query import answer
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    result = answer("assets of CrossFirst Bank in 2022?", "agentic", deps)
+    assert result.refused is False
+    assert "5B" in result.answer
+
+
+def test_answer_defaults_to_linear_for_hybrid(tmp_path):
+    from rag.query import answer
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2023")
+    result = answer("assets of CrossFirst Bank in 2023?", "hybrid", deps)
+    assert result.refused is True

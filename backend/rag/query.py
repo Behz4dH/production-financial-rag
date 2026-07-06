@@ -59,3 +59,10 @@ def answer_linear(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
     if not docs:
         return refusal("no relevant excerpts retrieved")
     return generate(question, docs, deps.llm)
+
+
+def answer(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
+    if mode == "agentic":
+        from rag.agentic import answer_agentic
+        return answer_agentic(question, deps)
+    return answer_linear(question, mode, deps)
