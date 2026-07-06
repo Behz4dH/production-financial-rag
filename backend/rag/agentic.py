@@ -2,7 +2,7 @@
 
 resolve -> [refuse | retrieve] -> grade -> [generate | rewrite->retrieve | refuse]
 The grade step is a simple, transparent check: did retrieval return anything?
-If not and retries remain, widen the search once; otherwise refuse.
+If not and retries remain, retry retrieval; otherwise refuse.
 """
 
 from typing import Optional
