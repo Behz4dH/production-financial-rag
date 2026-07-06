@@ -7,12 +7,20 @@ import json
 import sys
 from pathlib import Path
 
+from langchain_core.documents import Document
+
 from core.config import Settings, get_settings
 from rag.ingestion.chunking import chunk_pages
 from rag.ingestion.loaders import load_directory
 from rag.ingestion.metadata import load_or_extract
 from rag.providers.factory import get_embeddings, get_llm
 from rag.retrieval.store import ChromaStore, VectorStore
+
+
+def _docstore_line(chunk: Document) -> str:
+    """One JSONL row for the docstore: the chunk text plus its metadata."""
+    row = {"page_content": chunk.page_content, "metadata": chunk.metadata}
+    return json.dumps(row, ensure_ascii=False) + "\n"
 
 
 def ingest(settings: Settings, store: VectorStore, llm) -> dict:
@@ -37,11 +45,8 @@ def ingest(settings: Settings, store: VectorStore, llm) -> dict:
             )
             chunks = chunk_pages(pages, settings.chunk_size, settings.chunk_overlap)
             store.add(chunks)
-            for c in chunks:
-                fh.write(json.dumps(
-                    {"page_content": c.page_content, "metadata": c.metadata},
-                    ensure_ascii=False,
-                ) + "\n")
+            for chunk in chunks:
+                fh.write(_docstore_line(chunk))
             files += 1
             total_chunks += len(chunks)
             companies.append(md.company_name)
