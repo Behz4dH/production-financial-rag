@@ -10,7 +10,10 @@ design and `../docs/superpowers/plans/` for the build plans.
 cd backend
 uv sync
 cp .env.example .env      # add your GROQ_API_KEY
-pytest                    # run the test suite
+make ingest               # build the index from data/docs (metadata is cached)
+make run                  # API on http://localhost:8000  (Swagger at /docs)
+make eval                 # run the benchmark -> per-category table + eval_results.json
+make test                 # pytest
 ```
 
-More commands (ingest, run, eval) arrive in later build plans.
+Endpoints: `POST /chat {message, thread_id?, mode?}`, `GET /health`, `GET /metrics`.

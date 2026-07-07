@@ -7,7 +7,7 @@ test:
 	uv run pytest -q
 
 run:
-	@echo "API server arrives in a later plan"
+	uv run uvicorn "app.main:create_app" --factory --reload --port 8000
 
 eval:
 	@echo "Eval harness arrives in a later plan"
