@@ -804,12 +804,9 @@ def create_app(query_deps=None) -> FastAPI:
         return resp
 
     return app
-
-
-app = create_app()
 ```
 
-Note: the module-level `app = create_app()` is what `uvicorn app.main:app` serves; it triggers the real `build_deps` at startup. Tests call `create_app(query_deps=...)` with a fake, so they never hit `build_deps`. Verify the `slowapi` decorator + `Limiter` usage against the installed version (the `request: Request` first arg is required by slowapi); keep the route signatures otherwise.
+Note: there is intentionally **no module-level `app = create_app()`** — that would call `get_settings()` (which requires a key) at import time and break the tests. uvicorn serves the factory instead (`app.main:create_app --factory`, wired in Task 8), so importing `app.main` builds nothing. Tests call `create_app(query_deps=object())` after the fixture sets a dummy key. Verify the `slowapi` decorator + `Limiter` usage against the installed version (the `request: Request` first arg is required by slowapi); keep the route signatures otherwise.
 
 - [ ] **Step 4: Run to verify pass, then full suite**
 
@@ -837,7 +834,7 @@ git commit -m "feat(app): FastAPI /health, /metrics, /chat with cache/security/l
 In `backend/Makefile`, replace the placeholder `run` recipe with:
 ```make
 run:
-	uv run uvicorn app.main:app --reload --port 8000
+	uv run uvicorn "app.main:create_app" --factory --reload --port 8000
 ```
 
 - [ ] **Step 2: Update `backend/README.md` quickstart**
@@ -890,4 +887,4 @@ git commit -m "chore(app): wire make run and document the quickstart"
 
 **Placeholder scan:** none — full code in every step. One "verify slowapi decorator against installed version" note (Task 7) describes a concrete contract.
 
-**Type consistency:** `MetricsCollector.get_summary()` keys (Task 1) match `MetricsResponse` (Plan 1 `app/models.py`). `to_chat_response` (Task 6) maps `RAGAnswer` (Plan 3) → `ChatResponse` (Plan 1). `screen_input`/`mask_output` (Task 2), `with_retry` (Task 3), `within_budget` (Task 4), `configure_tracing` (Task 5) are all consumed by `/chat`/lifespan in Task 7. `answer`/`build_deps` come from `rag.query` (Plan 3). The `app = create_app()` module global is the uvicorn entrypoint (`make run`, Task 8).
+**Type consistency:** `MetricsCollector.get_summary()` keys (Task 1) match `MetricsResponse` (Plan 1 `app/models.py`). `to_chat_response` (Task 6) maps `RAGAnswer` (Plan 3) → `ChatResponse` (Plan 1). `screen_input`/`mask_output` (Task 2), `with_retry` (Task 3), `within_budget` (Task 4), `configure_tracing` (Task 5) are all consumed by `/chat`/lifespan in Task 7. `answer`/`build_deps` come from `rag.query` (Plan 3). uvicorn serves the `create_app` factory (`--factory`, Task 8) — no module-level app, so importing `app.main` never calls `get_settings()`/`build_deps` (keeps the tests offline).
