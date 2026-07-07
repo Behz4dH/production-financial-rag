@@ -7,6 +7,8 @@ import time
 
 def with_retry(fn, *, max_retries: int, base_delay: float = 1.0,
                max_delay: float = 30.0, exceptions: tuple = (Exception,)):
+    if max_retries < 1:
+        raise ValueError("max_retries must be >= 1")
     last: Exception | None = None
     for attempt in range(max_retries):
         try:

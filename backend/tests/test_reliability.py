@@ -35,3 +35,16 @@ def test_fallback_used_when_primary_fails():
 
 def test_fallback_not_used_when_primary_ok():
     assert call_with_fallback(lambda: "primary-ok", lambda: "fallback") == "primary-ok"
+
+
+def test_with_retry_raises_on_invalid_max_retries():
+    calls = {"n": 0}
+
+    def fn():
+        calls["n"] += 1
+        return "ok"
+
+    with pytest.raises(ValueError, match="max_retries must be >= 1"):
+        with_retry(fn, max_retries=0, base_delay=0.0)
+
+    assert calls["n"] == 0  # fn was never called
