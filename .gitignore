@@ -30,3 +30,4 @@ dist/
 
 # Conversation exports
 *-can-you-check-out-*.txt
+/20??-??-??-*.txt
