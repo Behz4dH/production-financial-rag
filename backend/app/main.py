@@ -16,7 +16,7 @@ from core.config import get_settings
 from core.monitoring import MetricsCollector
 from core.reliability import with_retry
 from core.security import mask_output, screen_input
-from core.token_budget import within_budget
+from core.token_budget import count_tokens, within_budget
 from core.tracing import configure_tracing
 from rag.query import answer, build_deps
 
@@ -57,7 +57,7 @@ def create_app(query_deps=None) -> FastAPI:
         started = time.perf_counter()
         mode = body.mode or settings.retrieval_mode
 
-        ok, _ = within_budget(body.message, settings.max_tokens_per_request)
+        ok, input_tokens = within_budget(body.message, settings.max_tokens_per_request)
         if not ok:
             return JSONResponse(status_code=413,
                                 content=ErrorResponse(error="message too large").model_dump())
@@ -70,8 +70,10 @@ def create_app(query_deps=None) -> FastAPI:
         cached_answer = state.cache.get(f"{mode}:{cleaned}")
         if cached_answer is not None:
             elapsed = (time.perf_counter() - started) * 1000
-            state.metrics.record_request(elapsed, 0, 0, cached=True)
-            return ChatResponse.model_validate_json(cached_answer).model_copy(update={"cached": True})
+            parsed_cached = ChatResponse.model_validate_json(cached_answer)
+            state.metrics.record_request(elapsed, input_tokens, count_tokens(parsed_cached.response),
+                                         cached=True)
+            return parsed_cached.model_copy(update={"cached": True})
 
         try:
             rag_answer = with_retry(
@@ -80,7 +82,7 @@ def create_app(query_deps=None) -> FastAPI:
             )
         except Exception as exc:  # noqa: BLE001
             elapsed = (time.perf_counter() - started) * 1000
-            state.metrics.record_request(elapsed, 0, 0, error=True)
+            state.metrics.record_request(elapsed, input_tokens, 0, error=True)
             return JSONResponse(status_code=500,
                                 content=ErrorResponse(error="generation failed",
                                                       detail=str(exc)).model_dump())
@@ -91,7 +93,7 @@ def create_app(query_deps=None) -> FastAPI:
                                 model_used=settings.primary_model, mode=mode,
                                 cached=False, processing_time_ms=elapsed)
         state.cache.set(f"{mode}:{cleaned}", resp.model_dump_json())
-        state.metrics.record_request(elapsed, 0, 0)
+        state.metrics.record_request(elapsed, input_tokens, count_tokens(resp.response))
         return resp
 
     return app

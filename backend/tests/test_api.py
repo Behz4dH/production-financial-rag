@@ -76,4 +76,7 @@ def test_metrics_after_requests(client):
     client.post("/chat", json={"message": "net income of Petra 2022?"})
     r = client.get("/metrics")
     assert r.status_code == 200
-    assert r.json()["total_requests"] >= 1
+    body = r.json()
+    assert body["total_requests"] >= 1
+    assert body["total_input_tokens"] > 0
+    assert body["total_output_tokens"] > 0
