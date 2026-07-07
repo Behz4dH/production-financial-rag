@@ -1,7 +1,9 @@
 """FastAPI application: /health, /metrics, /chat around rag.query.answer."""
 
 import time
+import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,21 +15,32 @@ from app.models import ChatRequest, ChatResponse, ErrorResponse, HealthResponse,
 from app.rate_limit import limiter
 from core.cache import ResponseCache
 from core.config import get_settings
+from core.logging import get_logger
 from core.monitoring import MetricsCollector
-from core.reliability import with_retry
+from core.reliability import call_with_fallback, with_retry
 from core.security import mask_output, screen_input
 from core.token_budget import count_tokens
 from core.tracing import configure_tracing
+from rag.providers.factory import get_llm
 from rag.query import answer, build_deps
 
 
 def create_app(query_deps=None) -> FastAPI:
     settings = get_settings()
+    logger = get_logger("financial_rag", settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         configure_tracing(settings)
-        app.state.query_deps = query_deps if query_deps is not None else build_deps(settings)
+        if query_deps is not None:  # test/injection path
+            app.state.query_deps = query_deps
+            app.state.query_deps_fallback = query_deps
+        else:
+            deps = build_deps(settings)
+            app.state.query_deps = deps
+            # A fallback deps that shares everything but swaps in the fallback model.
+            app.state.query_deps_fallback = replace(
+                deps, llm=get_llm(settings, settings.fallback_model))
         app.state.cache = ResponseCache(settings.cache_ttl_seconds)
         app.state.metrics = MetricsCollector()
         yield
@@ -43,8 +56,9 @@ def create_app(query_deps=None) -> FastAPI:
 
     @app.get("/health", response_model=HealthResponse)
     def health(request: Request) -> HealthResponse:
-        return HealthResponse(status="ok", app_env=settings.app_env,
-                              index_loaded=request.app.state.query_deps is not None)
+        deps = request.app.state.query_deps
+        loaded = deps is not None and deps.store.count() > 0  # the index actually has chunks
+        return HealthResponse(status="ok", app_env=settings.app_env, index_loaded=loaded)
 
     @app.get("/metrics", response_model=MetricsResponse)
     def metrics(request: Request) -> MetricsResponse:
@@ -55,33 +69,43 @@ def create_app(query_deps=None) -> FastAPI:
     def chat(request: Request, body: ChatRequest):
         state = request.app.state
         started = time.perf_counter()
+        request_id = uuid.uuid4().hex[:8]
         mode = body.mode or settings.retrieval_mode
         input_tokens = count_tokens(body.message)
 
-        # Note: the request message is already length-capped by ChatRequest; the
-        # token budget that matters (the assembled generation prompt) is enforced
-        # inside rag.generation.generate, not here.
+        def log(status: str, elapsed_ms: float, **extra) -> None:
+            logger.info("chat", extra={"extra_data": {
+                "request_id": request_id, "mode": mode,
+                "latency_ms": round(elapsed_ms, 2), "status": status, **extra}})
+
+        # The message is already length-capped by ChatRequest; the token budget
+        # that matters (the assembled prompt) is enforced in rag.generation.generate.
         blocked, cleaned = screen_input(body.message)
         if blocked:
+            log("blocked", (time.perf_counter() - started) * 1000)
             return JSONResponse(status_code=400,
                                 content=ErrorResponse(error="input rejected by safety filter").model_dump())
 
         cached_answer = state.cache.get(f"{mode}:{cleaned}")
         if cached_answer is not None:
             elapsed = (time.perf_counter() - started) * 1000
-            parsed_cached = ChatResponse.model_validate_json(cached_answer)
-            state.metrics.record_request(elapsed, input_tokens, count_tokens(parsed_cached.response),
-                                         cached=True)
-            return parsed_cached.model_copy(update={"cached": True})
+            parsed = ChatResponse.model_validate_json(cached_answer)
+            state.metrics.record_request(elapsed, input_tokens, count_tokens(parsed.response), cached=True)
+            log("cached", elapsed, refused=parsed.refused)
+            return parsed.model_copy(update={"cached": True})
 
         try:
-            rag_answer = with_retry(
-                lambda: answer(cleaned, mode, state.query_deps),
-                max_retries=settings.max_retries, base_delay=0.0,
+            # Retry the primary model with backoff; if it still fails, fall back
+            # to the configured fallback model.
+            rag_answer = call_with_fallback(
+                lambda: with_retry(lambda: answer(cleaned, mode, state.query_deps),
+                                   max_retries=settings.max_retries, base_delay=0.0),
+                lambda: answer(cleaned, mode, state.query_deps_fallback),
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — primary (with retries) and fallback both failed
             elapsed = (time.perf_counter() - started) * 1000
             state.metrics.record_request(elapsed, input_tokens, 0, error=True)
+            log("error", elapsed, error=str(exc))
             return JSONResponse(status_code=500,
                                 content=ErrorResponse(error="generation failed",
                                                       detail=str(exc)).model_dump())
@@ -93,6 +117,7 @@ def create_app(query_deps=None) -> FastAPI:
                                 cached=False, processing_time_ms=elapsed)
         state.cache.set(f"{mode}:{cleaned}", resp.model_dump_json())
         state.metrics.record_request(elapsed, input_tokens, count_tokens(resp.response))
+        log("ok", elapsed, refused=resp.refused)
         return resp
 
     return app

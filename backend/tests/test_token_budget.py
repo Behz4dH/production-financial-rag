@@ -1,14 +1,11 @@
 """Token counting + per-request budget check."""
 
-from core.token_budget import count_tokens, within_budget
+from core.token_budget import count_tokens
 
 
 def test_count_tokens_positive():
     assert count_tokens("hello world foo bar") > 0
 
 
-def test_within_budget_true_and_false():
-    ok, n = within_budget("short question", max_tokens=1000)
-    assert ok is True and n > 0
-    ok2, n2 = within_budget("word " * 5000, max_tokens=100)
-    assert ok2 is False and n2 > 100
+def test_count_tokens_scales_with_length():
+    assert count_tokens("word " * 500) > count_tokens("short")

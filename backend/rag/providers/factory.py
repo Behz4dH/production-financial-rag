@@ -15,10 +15,10 @@ from core.config import Settings, get_settings
 from rag.providers.base import EmbeddingsModel, LLM
 
 
-def get_llm(settings: Settings | None = None) -> LLM:
+def get_llm(settings: Settings | None = None, model: str | None = None) -> LLM:
     settings = settings or get_settings()
     return init_chat_model(
-        model=settings.primary_model,
+        model=model or settings.primary_model,
         model_provider=settings.llm_provider,
         api_key=settings.groq_api_key,
         temperature=0,

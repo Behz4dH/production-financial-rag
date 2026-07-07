@@ -13,8 +13,3 @@ def count_tokens(text: str, model: str = "gpt-4o") -> int:
     except Exception:
         # Fallback estimate if tiktoken/model data is unavailable.
         return max(1, int(len(text.split()) * 1.3))
-
-
-def within_budget(text: str, max_tokens: int) -> tuple[bool, int]:
-    n = count_tokens(text)
-    return n <= max_tokens, n

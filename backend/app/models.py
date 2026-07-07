@@ -1,6 +1,7 @@
 """API request and response models (Pydantic v2)."""
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,7 +17,8 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000,
                          description="The user's question")
     thread_id: str = Field(default="default", description="Conversation thread ID")
-    mode: str | None = Field(default=None, description="basic | hybrid | agentic")
+    mode: Literal["basic", "hybrid", "agentic"] | None = Field(
+        default=None, description="basic | hybrid | agentic (defaults to configured mode)")
 
 
 class ChatResponse(BaseModel):
