@@ -28,3 +28,15 @@ These were intentionally out of scope for the foundation slice.
   `VectorStore` in Plan 3 (call before re-ingest, or clear-then-add).
 - **Cosmetic:** `load_text` uses `errors="replace"` (kept — robustness for real filings);
   empty-text+table page leaves a leading blank line in the chunk.
+
+## From Plan 4 final review (API) — accepted risks
+- **tiktoken network on first use** — `core/token_budget.count_tokens` calls
+  `tiktoken.encoding_for_model`, which downloads the encoding file on first use if not
+  cached. Falls back to a word-based estimate on failure, so it degrades gracefully, but
+  the first real request may briefly hit the network. Bundle/pin the encoding if fully
+  offline operation is ever required.
+- **Unreachable 413 (token budget)** — `ChatRequest.message` is capped at 2000 chars
+  (~500 tokens), well under `max_tokens_per_request` (8000), so the `/chat` 413 branch is
+  currently dead. Kept as defense-in-depth; it becomes live if the message cap is raised
+  or the budget lowered. (Fixed in Plan 4: `with_retry` no longer masks `TypeError`;
+  token metrics now count real tokens; env-var test leak closed.)
