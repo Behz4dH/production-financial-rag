@@ -19,6 +19,8 @@ def test_tracing_noop_without_key(monkeypatch):
 
 def test_tracing_configures_env_when_enabled(monkeypatch):
     monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
     enabled = configure_tracing(_settings(
         langsmith_tracing=True, langsmith_api_key="ls-key", langsmith_project="proj"))
     assert enabled is True
