@@ -58,7 +58,7 @@ def answer_linear(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
     docs = _retrieve(question, mode, res.sources, deps)
     if not docs:
         return refusal("no relevant excerpts retrieved")
-    return generate(question, docs, deps.llm)
+    return generate(question, docs, deps.llm, deps.settings.max_tokens_per_request)
 
 
 def answer(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:

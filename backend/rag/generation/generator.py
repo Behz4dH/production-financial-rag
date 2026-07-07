@@ -3,6 +3,7 @@
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 
+from core.token_budget import count_tokens
 from rag.generation.schema import AnswerDraft, Citation, RAGAnswer
 
 _PROMPT = ChatPromptTemplate.from_messages(
@@ -39,7 +40,23 @@ def _citations_from(docs: list[Document]) -> list[Citation]:
     return cites
 
 
-def generate(question: str, docs: list[Document], llm) -> RAGAnswer:
+def _fit_context(question: str, docs: list[Document], max_tokens: int) -> list[Document]:
+    """Drop lowest-ranked chunks until question + context fits the token budget.
+
+    Docs arrive ranked best-first, so we drop from the end. This guards against
+    context overflow — the real token risk is the assembled prompt, not the
+    already length-capped question. Always keeps at least one chunk.
+    """
+    kept = list(docs)
+    while len(kept) > 1 and count_tokens(question + format_context(kept)) > max_tokens:
+        kept.pop()
+    return kept
+
+
+def generate(question: str, docs: list[Document], llm,
+             max_tokens: int | None = None) -> RAGAnswer:
+    if max_tokens is not None:
+        docs = _fit_context(question, docs, max_tokens)
     draft = llm.with_structured_output(AnswerDraft).invoke(
         _PROMPT.invoke({"question": question, "context": format_context(docs)})
     )

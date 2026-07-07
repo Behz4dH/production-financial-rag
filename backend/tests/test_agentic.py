@@ -41,7 +41,7 @@ def _deps(tmp_path, companies, year):
     meta = {"cross.pdf": {"company_name": "CrossFirst Bankshares, Inc.",
                           "aliases": ["CrossFirst Bank"], "fiscal_year": "2022"}}
     class _S:
-        top_k = 5; bm25_weight = 0.4; vector_weight = 0.6; max_retries = 1
+        top_k = 5; bm25_weight = 0.4; vector_weight = 0.6; max_retries = 1; max_tokens_per_request = 8000
     return QueryDeps(store=store, docstore_docs=docs, entity_index=build_index(meta),
                      llm=_LLM(companies, year), settings=_S())
 

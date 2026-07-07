@@ -48,6 +48,27 @@ def test_generate_refused_has_no_citations():
     assert result.citations == []
 
 
+def test_generate_trims_context_to_token_budget(monkeypatch):
+    # Deterministic, offline token counting: 1 token per character.
+    import rag.generation.generator as G
+    monkeypatch.setattr(G, "count_tokens", lambda text: len(text))
+
+    docs = [Document(page_content="x" * 100,
+                     metadata={"source": "a.pdf", "page": i}) for i in range(10)]
+    draft = AnswerDraft(answer="ok", refused=False)
+    # A tight budget must force lower-ranked chunks to be dropped.
+    result = generate("q", docs, _llm(draft), max_tokens=250)
+    assert 0 < len(result.citations) < 10  # trimmed, but never empty
+
+
+def test_generate_no_trim_when_budget_none():
+    docs = [Document(page_content="x" * 100,
+                     metadata={"source": "a.pdf", "page": i}) for i in range(5)]
+    draft = AnswerDraft(answer="ok", refused=False)
+    result = generate("q", docs, _llm(draft))  # max_tokens=None -> no trimming
+    assert len(result.citations) == 5
+
+
 def test_refusal_is_grounded_na_without_llm():
     r = refusal("company not in the provided filings")
     assert r.refused is True

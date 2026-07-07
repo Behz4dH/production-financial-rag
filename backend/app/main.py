@@ -16,7 +16,7 @@ from core.config import get_settings
 from core.monitoring import MetricsCollector
 from core.reliability import with_retry
 from core.security import mask_output, screen_input
-from core.token_budget import count_tokens, within_budget
+from core.token_budget import count_tokens
 from core.tracing import configure_tracing
 from rag.query import answer, build_deps
 
@@ -56,12 +56,11 @@ def create_app(query_deps=None) -> FastAPI:
         state = request.app.state
         started = time.perf_counter()
         mode = body.mode or settings.retrieval_mode
+        input_tokens = count_tokens(body.message)
 
-        ok, input_tokens = within_budget(body.message, settings.max_tokens_per_request)
-        if not ok:
-            return JSONResponse(status_code=413,
-                                content=ErrorResponse(error="message too large").model_dump())
-
+        # Note: the request message is already length-capped by ChatRequest; the
+        # token budget that matters (the assembled generation prompt) is enforced
+        # inside rag.generation.generate, not here.
         blocked, cleaned = screen_input(body.message)
         if blocked:
             return JSONResponse(status_code=400,

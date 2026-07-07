@@ -36,7 +36,8 @@ def build_agentic_app(deps: QueryDeps):
         return {"docs": docs}
 
     def generate_node(state: AgentState) -> dict:
-        return {"answer": generate(state["question"], state["docs"], deps.llm)}
+        return {"answer": generate(state["question"], state["docs"], deps.llm,
+                                   deps.settings.max_tokens_per_request)}
 
     def rewrite_node(state: AgentState) -> dict:
         return {"retries": state["retries"] + 1}
