@@ -13,13 +13,12 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.generation.generator import generate, refusal
 from rag.generation.schema import RAGAnswer
-from rag.query import QueryDeps, _retrieve, enrich_retrieval_query, relevance_refusal_reason
+from rag.query import QueryDeps, _retrieve, relevance_refusal_reason
 from rag.retrieval.entity_resolver import parse_query, resolve
 
 
 class AgentState(TypedDict):
     question: str
-    retrieval_query: str
     sources: list[str]
     unresolved: list[str]
     docs: list
@@ -31,11 +30,10 @@ def build_agentic_app(deps: QueryDeps):
     def resolve_node(state: AgentState) -> dict:
         entities = parse_query(state["question"], deps.llm)
         res = resolve(entities, deps.entity_index)
-        return {"sources": res.sources, "unresolved": res.unresolved,
-                "retrieval_query": enrich_retrieval_query(state["question"], res)}
+        return {"sources": res.sources, "unresolved": res.unresolved}
 
     def retrieve_node(state: AgentState) -> dict:
-        docs = _retrieve(state["retrieval_query"], "hybrid", state["sources"], deps)
+        docs = _retrieve(state["question"], "hybrid", state["sources"], deps)
         return {"docs": docs}
 
     def generate_node(state: AgentState) -> dict:
@@ -80,6 +78,6 @@ def build_agentic_app(deps: QueryDeps):
 
 def answer_agentic(question: str, deps: QueryDeps) -> RAGAnswer:
     app = build_agentic_app(deps)
-    final = app.invoke({"question": question, "retrieval_query": question, "sources": [],
-                        "unresolved": [], "docs": [], "answer": None, "retries": 0})
+    final = app.invoke({"question": question, "sources": [], "unresolved": [],
+                        "docs": [], "answer": None, "retries": 0})
     return final["answer"]

@@ -51,33 +51,20 @@ def _matches(asked: str, candidate: str) -> bool:
 
 
 def build_index(doc_metadata: dict) -> list[dict]:
-    """One record per (source, matchable name) — the canonical company_name is
-    carried on every record (not just the one where name == company_name) so
-    a match via an alias still tells the caller the filing's real name."""
     records: list[dict] = []
     for source, meta in doc_metadata.items():
-        company_name = meta.get("company_name", "")
-        names = [company_name] + list(meta.get("aliases") or [])
+        names = [meta.get("company_name", "")] + list(meta.get("aliases") or [])
         for name in names:
             if name:
                 records.append({"source": source, "name": name,
-                                "company_name": company_name,
                                 "fiscal_year": meta.get("fiscal_year")})
     return records
-
-
-@dataclass
-class ResolvedEntity:
-    source: str
-    company_name: str
-    fiscal_year: str | None
 
 
 @dataclass
 class Resolution:
     sources: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
-    entities: list[ResolvedEntity] = field(default_factory=list)
 
     @property
     def refuse(self) -> bool:
@@ -92,14 +79,11 @@ def resolve(entities: QueryEntities, index: list[dict]) -> Resolution:
             if _matches(company, rec["name"]):
                 year_ok = entities.fiscal_year is None or rec["fiscal_year"] == entities.fiscal_year
                 if year_ok:
-                    hit = rec
+                    hit = rec["source"]
                     break
         if hit is not None:
-            if hit["source"] not in res.sources:
-                res.sources.append(hit["source"])
-                res.entities.append(ResolvedEntity(
-                    source=hit["source"], company_name=hit["company_name"],
-                    fiscal_year=hit["fiscal_year"]))
+            if hit not in res.sources:
+                res.sources.append(hit)
         else:
             res.unresolved.append(company)
     return res

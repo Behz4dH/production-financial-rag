@@ -3,9 +3,9 @@
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
-from rag.query import QueryDeps, answer_linear, enrich_retrieval_query, relevance_refusal_reason
+from rag.query import QueryDeps, answer_linear, relevance_refusal_reason
 from rag.generation.schema import RAGAnswer
-from rag.retrieval.entity_resolver import QueryEntities, ResolvedEntity, Resolution, build_index
+from rag.retrieval.entity_resolver import QueryEntities, build_index
 from rag.retrieval.store import ChromaStore
 
 
@@ -55,20 +55,6 @@ def test_answer_refuses_wrong_year(tmp_path):
     assert result.refused is True
     assert result.answer.strip().upper().startswith("N/A")
     assert "CrossFirst Bank" in result.reason  # the reason names the unresolved entity
-
-
-def test_enrich_retrieval_query_appends_canonical_name_and_year():
-    res = Resolution(sources=["petra.pdf"],
-                     entities=[ResolvedEntity(source="petra.pdf",
-                                              company_name="Petra Diamonds Limited",
-                                              fiscal_year="2022")])
-    enriched = enrich_retrieval_query("net income of Petra 2022?", res)
-    assert enriched == "net income of Petra 2022? Petra Diamonds Limited fiscal year 2022"
-
-
-def test_enrich_retrieval_query_is_noop_without_resolved_entities():
-    res = Resolution()  # nothing resolved
-    assert enrich_retrieval_query("some question", res) == "some question"
 
 
 def test_relevance_refusal_reason_empty_docs():

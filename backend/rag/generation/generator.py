@@ -11,7 +11,12 @@ _PROMPT = ChatPromptTemplate.from_messages(
         ("system",
          "You answer questions about company financial filings using ONLY the "
          "provided excerpts. If the excerpts do not contain the answer, set "
-         "refused=true and answer exactly 'N/A'. Never invent figures."),
+         "refused=true and answer exactly 'N/A'. Never invent figures. "
+         "Filings often report both a GAAP/statutory figure and a non-GAAP "
+         "'adjusted' or 'underlying' variant of the same metric (e.g. 'net "
+         "profit' vs 'adjusted net profit'). Use the GAAP/statutory (as-"
+         "reported) figure unless the question explicitly asks for the "
+         "adjusted or underlying measure."),
         ("human", "Question:\n{question}\n\nExcerpts:\n{context}"),
     ]
 )

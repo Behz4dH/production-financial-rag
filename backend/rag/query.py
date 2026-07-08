@@ -50,24 +50,6 @@ def _retrieve(question, mode, sources, deps):
     return rerank(question, candidates, deps.reranker, s.top_n)
 
 
-def enrich_retrieval_query(question: str, resolution) -> str:
-    """Append the *canonical* company name + fiscal year to the question
-    before retrieval (never for generation/citations — that still sees the
-    raw question).
-
-    A short user question like "Petra 2022" already contains every term it's
-    going to contain — echoing it back adds nothing. What helps is the
-    canonical name from doc_metadata.json (e.g. "Petra Diamonds Limited"),
-    which the user's shorthand doesn't have, plus the literal phrase "fiscal
-    year <N>" to disambiguate the comparative-year columns financial
-    statements always show side by side. Both come for free: resolve() has
-    already looked them up, we just weren't using them for retrieval.
-    """
-    extras = [f"{e.company_name} fiscal year {e.fiscal_year}"
-             for e in resolution.entities if e.fiscal_year]
-    return f"{question} {' '.join(extras)}" if extras else question
-
-
 def relevance_refusal_reason(docs: list, threshold: float) -> str | None:
     """None if docs clear the bar; otherwise why they don't.
 
@@ -91,8 +73,7 @@ def answer_linear(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
     res = resolve(entities, deps.entity_index)
     if res.refuse:
         return refusal(f"no filing matches {res.unresolved}")
-    retrieval_query = enrich_retrieval_query(question, res)
-    docs = _retrieve(retrieval_query, mode, res.sources, deps)
+    docs = _retrieve(question, mode, res.sources, deps)
     reason = relevance_refusal_reason(docs, deps.settings.refusal_score_threshold)
     if reason:
         return refusal(reason)
