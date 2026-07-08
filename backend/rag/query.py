@@ -11,6 +11,7 @@ from rag.retrieval.entity_resolver import build_index, parse_query, resolve
 from rag.retrieval.hybrid import build_hybrid_retriever, vector_only_retriever
 from rag.retrieval.reranker import load_reranker, rerank
 from rag.retrieval.store import ChromaStore
+from rag.trace import TraceRecorder
 
 
 @dataclass
@@ -37,7 +38,15 @@ def build_deps(settings: Settings | None = None) -> QueryDeps:
                      settings=settings, reranker=load_reranker(settings.reranker_model))
 
 
-def _retrieve(question, mode, sources, deps):
+def _doc_snippet(d, with_score: bool = False) -> dict:
+    out = {"source": d.metadata.get("source", ""), "page": d.metadata.get("page"),
+           "snippet": d.page_content[:200]}
+    if with_score:
+        out["score"] = d.metadata.get("rerank_score")
+    return out
+
+
+def _retrieve(question, mode, sources, deps, trace: TraceRecorder | None = None):
     s = deps.settings
     if mode == "basic":
         retriever = vector_only_retriever(deps.store, sources, s.top_k)
@@ -45,9 +54,14 @@ def _retrieve(question, mode, sources, deps):
         retriever = build_hybrid_retriever(deps.store, deps.docstore_docs, sources,
                                            s.top_k, s.bm25_weight, s.vector_weight)
     candidates = retriever.invoke(question)
+    if trace is not None:
+        trace.record("retrieve_candidates", candidates=[_doc_snippet(d) for d in candidates])
     if deps.reranker is None:
         return candidates
-    return rerank(question, candidates, deps.reranker, s.top_n)
+    reranked = rerank(question, candidates, deps.reranker, s.top_n)
+    if trace is not None:
+        trace.record("rerank", chunks=[_doc_snippet(d, with_score=True) for d in reranked])
+    return reranked
 
 
 def relevance_refusal_reason(docs: list, threshold: float) -> str | None:
@@ -68,20 +82,35 @@ def relevance_refusal_reason(docs: list, threshold: float) -> str | None:
     return None
 
 
-def answer_linear(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
+def answer_linear(question: str, mode: str, deps: QueryDeps,
+                  trace: TraceRecorder | None = None) -> RAGAnswer:
     entities = parse_query(question, deps.llm)
+    if trace is not None:
+        trace.record("parse_query", companies=entities.companies, fiscal_year=entities.fiscal_year)
     res = resolve(entities, deps.entity_index)
+    if trace is not None:
+        trace.record("resolve_entities", sources=res.sources, unresolved=res.unresolved)
     if res.refuse:
-        return refusal(f"no filing matches {res.unresolved}")
-    docs = _retrieve(question, mode, res.sources, deps)
+        reason = f"no filing matches {res.unresolved}"
+        if trace is not None:
+            trace.record("refuse", reason=reason)
+        return refusal(reason)
+    docs = _retrieve(question, mode, res.sources, deps, trace=trace)
     reason = relevance_refusal_reason(docs, deps.settings.refusal_score_threshold)
     if reason:
+        if trace is not None:
+            trace.record("refuse", reason=reason)
         return refusal(reason)
-    return generate(question, docs, deps.llm, deps.settings.max_context_tokens)
+    result = generate(question, docs, deps.llm, deps.settings.max_context_tokens)
+    if trace is not None:
+        trace.record("generate", context_chunks=len(docs), refused=result.refused,
+                     confidence=result.confidence, answer=result.answer)
+    return result
 
 
-def answer(question: str, mode: str, deps: QueryDeps) -> RAGAnswer:
+def answer(question: str, mode: str, deps: QueryDeps,
+          trace: TraceRecorder | None = None) -> RAGAnswer:
     if mode == "agentic":
         from rag.agentic import answer_agentic
-        return answer_agentic(question, deps)
-    return answer_linear(question, mode, deps)
+        return answer_agentic(question, deps, trace=trace)
+    return answer_linear(question, mode, deps, trace=trace)

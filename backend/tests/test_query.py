@@ -7,6 +7,7 @@ from rag.query import QueryDeps, answer_linear, relevance_refusal_reason
 from rag.generation.schema import RAGAnswer
 from rag.retrieval.entity_resolver import QueryEntities, build_index
 from rag.retrieval.store import ChromaStore
+from rag.trace import TraceRecorder
 
 
 class _HashEmbeddings(Embeddings):
@@ -99,3 +100,31 @@ def test_answer_defaults_to_linear_for_hybrid(tmp_path):
     deps = _deps(tmp_path, ["CrossFirst Bank"], "2023")
     result = answer("assets of CrossFirst Bank in 2023?", "hybrid", deps)
     assert result.refused is True
+
+
+def test_answer_linear_records_trace_on_success(tmp_path):
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    trace = TraceRecorder()
+    answer_linear("assets of CrossFirst Bank in 2022?", "hybrid", deps, trace=trace)
+
+    stages = [s.stage for s in trace.steps]
+    assert stages == ["parse_query", "resolve_entities", "retrieve_candidates", "generate"]
+    assert trace.steps[0].data["companies"] == ["CrossFirst Bank"]
+    assert trace.steps[-1].data["answer"] == "Total assets were 5B."
+
+
+def test_answer_linear_records_trace_on_entity_refusal(tmp_path):
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2023")
+    trace = TraceRecorder()
+    answer_linear("assets of CrossFirst Bank in 2023?", "hybrid", deps, trace=trace)
+
+    stages = [s.stage for s in trace.steps]
+    assert stages == ["parse_query", "resolve_entities", "refuse"]
+    assert "CrossFirst Bank" in trace.steps[-1].data["reason"]
+
+
+def test_answer_without_trace_is_unaffected(tmp_path):
+    # trace defaults to None — this must behave exactly as before (no crash, no extra work).
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    result = answer_linear("assets of CrossFirst Bank in 2022?", "hybrid", deps)
+    assert result.refused is False
