@@ -153,3 +153,60 @@ h1 {
   overflow-x: auto;
   font-size: 0.85rem;
 }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #ddd;
+}
+
+.tabs button {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: #666;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs button.active {
+  color: #1a1a1a;
+  font-weight: bold;
+  border-bottom: 2px solid #1a1a1a;
+}
+
+.eval-page h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.eval-empty {
+  color: #666;
+  font-style: italic;
+}
+
+.eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.eval-table th,
+.eval-table td {
+  border: 1px solid #ddd;
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.eval-table th {
+  background: #f0f0f0;
+}
+
+.eval-table .overall-row,
+.eval-table .refusal-row {
+  font-weight: bold;
+  background: #fafafa;
+}

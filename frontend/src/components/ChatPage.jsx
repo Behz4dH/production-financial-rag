@@ -7,7 +7,7 @@ export default function ChatPage() {
   const [mode, setMode] = useState("");
   const [topK, setTopK] = useState("");
   const [topN, setTopN] = useState("");
-  const [history, setHistory] = useState([]); // newest first: [{question, response}]
+  const [history, setHistory] = useState([]); // newest first: [{id, question, response}]
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -18,7 +18,7 @@ export default function ChatPage() {
     setError("");
     try {
       const response = await postChatTrace({ message, mode, topK, topN });
-      setHistory((h) => [{ question: message, response }, ...h]);
+      setHistory((h) => [{ id: crypto.randomUUID(), question: message, response }, ...h]);
       setMessage("");
     } catch (err) {
       setError(err.message);
@@ -47,8 +47,8 @@ export default function ChatPage() {
       </form>
       {error && <p className="error">{error}</p>}
       <div className="history">
-        {history.map((h, i) => (
-          <div key={i} className="qa-block">
+        {history.map((h) => (
+          <div key={h.id} className="qa-block">
             <p className="question">Q: {h.question}</p>
             <p className={"answer" + (h.response.refused ? " refused" : "")}>
               A: {h.response.response}
