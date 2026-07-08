@@ -42,6 +42,16 @@ class ChatResponse(BaseModel):
     )
 
 
+class TraceStepModel(BaseModel):
+    stage: str
+    elapsed_ms: float
+    data: dict
+
+
+class TraceResponse(ChatResponse):
+    steps: list[TraceStepModel] = Field(default_factory=list)
+
+
 class MetricsResponse(BaseModel):
     total_requests: int
     total_errors: int

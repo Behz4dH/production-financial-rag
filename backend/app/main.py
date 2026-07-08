@@ -1,9 +1,11 @@
 """FastAPI application: /health, /metrics, /chat around rag.query.answer."""
 
+import json
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +13,15 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app.mapping import to_chat_response
-from app.models import ChatRequest, ChatResponse, ErrorResponse, HealthResponse, MetricsResponse
+from app.models import (
+    ChatRequest,
+    ChatResponse,
+    ErrorResponse,
+    HealthResponse,
+    MetricsResponse,
+    TraceResponse,
+    TraceStepModel,
+)
 from app.rate_limit import limiter
 from core.cache import ResponseCache
 from core.config import get_settings
@@ -23,6 +33,7 @@ from core.token_budget import count_tokens
 from core.tracing import configure_tracing
 from rag.providers.factory import get_llm
 from rag.query import answer, build_deps
+from rag.trace import TraceRecorder
 
 
 def _scoped_deps(deps, top_k: int | None, top_n: int | None):
@@ -137,5 +148,45 @@ def create_app(query_deps=None) -> FastAPI:
         state.metrics.record_request(elapsed, input_tokens, count_tokens(resp.response))
         log("ok", elapsed, refused=resp.refused, reason=resp.refusal_reason)
         return resp
+
+    @app.post("/chat/trace", response_model=TraceResponse)
+    @limiter.limit(settings.rate_limit)
+    def chat_trace(request: Request, body: ChatRequest):
+        state = request.app.state
+        started = time.perf_counter()
+        mode = body.mode or settings.retrieval_mode
+
+        blocked, cleaned = screen_input(body.message)
+        if blocked:
+            return JSONResponse(status_code=400,
+                                content=ErrorResponse(error="input rejected by safety filter").model_dump())
+
+        query_deps = _scoped_deps(state.query_deps, body.top_k, body.top_n)
+        recorder = TraceRecorder()
+        try:
+            # Demo/debug endpoint: one real attempt, no retry/fallback/cache -
+            # what you see here is exactly what ran, not a hidden second try.
+            rag_answer = answer(cleaned, mode, query_deps, trace=recorder)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(status_code=500,
+                                content=ErrorResponse(error="generation failed",
+                                                      detail=str(exc)).model_dump())
+
+        rag_answer.answer = mask_output(rag_answer.answer)
+        elapsed = (time.perf_counter() - started) * 1000
+        base = to_chat_response(rag_answer, thread_id=body.thread_id,
+                                model_used=settings.primary_model, mode=mode,
+                                cached=False, processing_time_ms=elapsed)
+        return TraceResponse(**base.model_dump(),
+                             steps=[TraceStepModel(stage=s.stage, elapsed_ms=s.elapsed_ms, data=s.data)
+                                    for s in recorder.steps])
+
+    @app.get("/eval-results")
+    def eval_results(request: Request):
+        path = Path(settings.data_dir).parent / "eval_results.json"
+        if not path.exists():
+            return JSONResponse(status_code=404,
+                                content={"error": "no eval run yet - run `make eval`"})
+        return json.loads(path.read_text(encoding="utf-8"))
 
     return app

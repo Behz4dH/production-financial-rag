@@ -1,5 +1,7 @@
 """API tests via httpx: fake deps + monkeypatched answer (no models/LLM)."""
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -17,7 +19,7 @@ def client(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT", "10000/minute")
     get_settings.cache_clear()
 
-    def fake_answer(question, mode, deps):
+    def fake_answer(question, mode, deps, trace=None):
         if "boom" in question:
             raise RuntimeError("provider down")
         refused = "unknown" in question
@@ -129,3 +131,42 @@ def test_metrics_after_requests(client):
     assert body["total_requests"] >= 1
     assert body["total_input_tokens"] > 0
     assert body["total_output_tokens"] > 0
+
+
+def test_chat_trace_returns_steps(client):
+    r = client.post("/chat/trace", json={"message": "net income of Petra 2022?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["response"] == "88.1"
+    assert "steps" in body
+    # fake_answer (the client fixture's monkeypatched `answer`) doesn't record
+    # anything itself, so this only proves the endpoint wires the field through -
+    # real step content is covered by test_query.py / test_agentic.py.
+    assert isinstance(body["steps"], list)
+
+
+def test_chat_trace_not_cached_or_retried(client):
+    # boom always raises in fake_answer - /chat/trace has no retry/fallback,
+    # so it should surface as a single clean 500, not loop or hang.
+    r = client.post("/chat/trace", json={"message": "boom"})
+    assert r.status_code == 500
+
+
+def test_eval_results_404_when_missing(client, tmp_path, monkeypatch):
+    from core.config import get_settings
+    settings = get_settings()
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "docs"))
+    r = client.get("/eval-results")
+    assert r.status_code == 404
+
+
+def test_eval_results_returns_report(client, monkeypatch, tmp_path):
+    from core.config import get_settings
+    settings = get_settings()
+    eval_path = tmp_path / "eval_results.json"
+    eval_path.write_text(json.dumps({"modes": {"hybrid": {"overall": {"accuracy": 1.0}}}}),
+                         encoding="utf-8")
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "docs"))
+    r = client.get("/eval-results")
+    assert r.status_code == 200
+    assert r.json()["modes"]["hybrid"]["overall"]["accuracy"] == 1.0
