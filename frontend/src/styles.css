@@ -1,0 +1,155 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #fafafa;
+  color: #1a1a1a;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+.chat-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chat-form input {
+  flex: 1 1 280px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.chat-form input.num {
+  flex: 0 1 90px;
+}
+
+.chat-form select {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.chat-form button {
+  padding: 8px 16px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.chat-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  color: #b00020;
+  font-weight: bold;
+}
+
+.qa-block {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.question {
+  font-weight: bold;
+}
+
+.answer.refused {
+  color: #b00020;
+}
+
+.reason {
+  font-style: italic;
+}
+
+.citations {
+  margin-top: 6px;
+}
+
+.chip {
+  display: inline-block;
+  border: 1px solid #999;
+  border-radius: 12px;
+  padding: 2px 10px;
+  margin: 2px 4px 2px 0;
+  font-size: 0.85rem;
+  background: #f0f0f0;
+}
+
+.trace-panel {
+  margin-top: 10px;
+  border-top: 1px dashed #ccc;
+  padding-top: 8px;
+}
+
+.trace-heading {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0 0 6px;
+}
+
+.trace-steps details {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+}
+
+.trace-steps summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.chunk-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.chunk-table th,
+.chunk-table td {
+  border: 1px solid #ddd;
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chunk-table .snippet {
+  max-width: 400px;
+  white-space: pre-wrap;
+}
+
+.step-data {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
