@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from core.config import get_settings
 from rag.generation.schema import RAGAnswer
+from rag.query import QueryDeps
 
 
 @pytest.fixture
@@ -24,18 +25,22 @@ def client(monkeypatch):
 
     monkeypatch.setattr(main, "answer", fake_answer)
 
-    # Fake deps: fake_answer ignores it, but /health reads deps.store.count().
-    class _Deps:
-        class store:
-            @staticmethod
-            def count():
-                return 3
+    # Fake deps: fake_answer ignores it, but /health reads deps.store.count(),
+    # and /chat's top_k/top_n override path calls dataclasses.replace() on it —
+    # so it must be a real QueryDeps, not a hand-rolled stand-in.
+    class _Store:
+        @staticmethod
+        def count():
+            return 3
+
+    deps = QueryDeps(store=_Store(), docstore_docs=[], entity_index=[],
+                     llm=None, settings=get_settings())
 
     # NOTE: the installed starlette's TestClient only runs the app's
     # lifespan (startup/shutdown) when used as a context manager; a bare
     # `TestClient(app)` never populates app.state via our lifespan, so
     # app.state.cache/metrics/query_deps would be missing on first request.
-    with TestClient(main.create_app(query_deps=_Deps())) as test_client:
+    with TestClient(main.create_app(query_deps=deps)) as test_client:
         yield test_client
     get_settings.cache_clear()
 
@@ -82,6 +87,38 @@ def test_chat_provider_error_returns_500(client):
     r = client.post("/chat", json={"message": "boom"})
     assert r.status_code == 500
     assert "error" in r.json()
+
+
+def test_scoped_deps_overrides_without_mutating_original(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    get_settings.cache_clear()
+    deps = QueryDeps(store=None, docstore_docs=[], entity_index=[], llm=None, settings=get_settings())
+
+    scoped = main._scoped_deps(deps, top_k=99, top_n=7)
+
+    assert scoped.settings.top_k == 99
+    assert scoped.settings.top_n == 7
+    assert deps.settings.top_k != 99  # the shared app.state deps is untouched
+    get_settings.cache_clear()
+
+
+def test_scoped_deps_is_noop_without_overrides(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    get_settings.cache_clear()
+    deps = QueryDeps(store=None, docstore_docs=[], entity_index=[], llm=None, settings=get_settings())
+
+    assert main._scoped_deps(deps, top_k=None, top_n=None) is deps
+    get_settings.cache_clear()
+
+
+def test_chat_accepts_top_k_top_n_overrides(client):
+    r = client.post("/chat", json={"message": "net income of Petra 2022?", "top_k": 3, "top_n": 1})
+    assert r.status_code == 200
+
+
+def test_chat_rejects_out_of_range_top_k(client):
+    r = client.post("/chat", json={"message": "hi", "top_k": 0})
+    assert r.status_code == 422
 
 
 def test_metrics_after_requests(client):

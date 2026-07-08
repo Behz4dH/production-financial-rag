@@ -42,8 +42,13 @@ class Settings(BaseSettings):
 
     # --- Security / reliability / limits ---
     enable_llm_guard: bool = False
-    max_retries: int = 3
-    max_tokens_per_request: int = 8000
+    llm_max_retries: int = 3       # LangChain/Groq SDK's own transport-level retries
+    request_max_retries: int = 3   # our with_retry() wrapper around a whole /chat call
+    agentic_max_retries: int = 3   # agentic loop: retries of retrieval after a weak-relevance grade
+    # Token budget for the assembled generation prompt (question + retrieved
+    # excerpts) — NOT a limit on the raw request; ChatRequest.message is
+    # separately capped at 2000 characters (~500 tokens) for input hygiene.
+    max_context_tokens: int = 8000
     rate_limit: str = "20/minute"
     cache_ttl_seconds: int = 300
 

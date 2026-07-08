@@ -25,6 +25,19 @@ from rag.providers.factory import get_llm
 from rag.query import answer, build_deps
 
 
+def _scoped_deps(deps, top_k: int | None, top_n: int | None):
+    """deps with top_k/top_n overridden for one request only.
+
+    Never mutates the shared deps.settings on app.state — that instance is
+    reused across every concurrent request, so overriding it in place would
+    leak one caller's test override into everyone else's requests.
+    """
+    overrides = {k: v for k, v in {"top_k": top_k, "top_n": top_n}.items() if v is not None}
+    if not overrides:
+        return deps
+    return replace(deps, settings=deps.settings.model_copy(update=overrides))
+
+
 def create_app(query_deps=None) -> FastAPI:
     settings = get_settings()
     logger = get_logger("financial_rag", settings.log_level)
@@ -86,21 +99,26 @@ def create_app(query_deps=None) -> FastAPI:
             return JSONResponse(status_code=400,
                                 content=ErrorResponse(error="input rejected by safety filter").model_dump())
 
-        cached_answer = state.cache.get(f"{mode}:{cleaned}")
+        # top_k/top_n in the cache key too — otherwise an overridden request could
+        # be served (or serve) a cached answer computed under different settings.
+        cache_key = f"{mode}:{body.top_k}:{body.top_n}:{cleaned}"
+        cached_answer = state.cache.get(cache_key)
         if cached_answer is not None:
             elapsed = (time.perf_counter() - started) * 1000
             parsed = ChatResponse.model_validate_json(cached_answer)
             state.metrics.record_request(elapsed, input_tokens, count_tokens(parsed.response), cached=True)
-            log("cached", elapsed, refused=parsed.refused)
+            log("cached", elapsed, refused=parsed.refused, reason=parsed.refusal_reason)
             return parsed.model_copy(update={"cached": True})
 
+        query_deps = _scoped_deps(state.query_deps, body.top_k, body.top_n)
+        fallback_deps = _scoped_deps(state.query_deps_fallback, body.top_k, body.top_n)
         try:
             # Retry the primary model with backoff; if it still fails, fall back
             # to the configured fallback model.
             rag_answer = call_with_fallback(
-                lambda: with_retry(lambda: answer(cleaned, mode, state.query_deps),
-                                   max_retries=settings.max_retries, base_delay=0.0),
-                lambda: answer(cleaned, mode, state.query_deps_fallback),
+                lambda: with_retry(lambda: answer(cleaned, mode, query_deps),
+                                   max_retries=settings.request_max_retries, base_delay=0.0),
+                lambda: answer(cleaned, mode, fallback_deps),
             )
         except Exception as exc:  # noqa: BLE001 — primary (with retries) and fallback both failed
             elapsed = (time.perf_counter() - started) * 1000
@@ -115,9 +133,9 @@ def create_app(query_deps=None) -> FastAPI:
         resp = to_chat_response(rag_answer, thread_id=body.thread_id,
                                 model_used=settings.primary_model, mode=mode,
                                 cached=False, processing_time_ms=elapsed)
-        state.cache.set(f"{mode}:{cleaned}", resp.model_dump_json())
+        state.cache.set(cache_key, resp.model_dump_json())
         state.metrics.record_request(elapsed, input_tokens, count_tokens(resp.response))
-        log("ok", elapsed, refused=resp.refused)
+        log("ok", elapsed, refused=resp.refused, reason=resp.refusal_reason)
         return resp
 
     return app

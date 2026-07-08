@@ -37,7 +37,7 @@ def test_get_llm_uses_init_chat_model_with_settings(monkeypatch):
 
     monkeypatch.setattr(factory, "init_chat_model", fake_init)
     llm = factory.get_llm(_settings(primary_model="llama-3.1-8b-instant",
-                                    llm_provider="groq", max_retries=5))
+                                    llm_provider="groq", llm_max_retries=5))
     assert llm == "FAKE_LLM"
     assert captured["model"] == "llama-3.1-8b-instant"
     assert captured["provider"] == "groq"

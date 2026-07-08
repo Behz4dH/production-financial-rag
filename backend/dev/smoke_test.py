@@ -42,6 +42,8 @@ def main() -> None:
         print(f"Q: {question}")
         result = answer(question, mode, deps)
         print(f"refused: {result.refused}")
+        if result.refused:
+            print(f"reason : {result.reason}")
         print(f"answer : {result.answer}")
         for c in result.citations:
             print(f"  cite: {c.source} p{c.page}")

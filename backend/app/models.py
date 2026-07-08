@@ -19,12 +19,19 @@ class ChatRequest(BaseModel):
     thread_id: str = Field(default="default", description="Conversation thread ID")
     mode: Literal["basic", "hybrid", "agentic"] | None = Field(
         default=None, description="basic | hybrid | agentic (defaults to configured mode)")
+    top_k: int | None = Field(default=None, ge=1, le=50,
+                              description="Override retrieval candidate count (testing only; "
+                                          "defaults to the server's configured top_k)")
+    top_n: int | None = Field(default=None, ge=1, le=20,
+                              description="Override reranked chunk count (testing only; "
+                                          "defaults to the server's configured top_n)")
 
 
 class ChatResponse(BaseModel):
     response: str
     citations: list[Citation] = Field(default_factory=list)
     refused: bool = False
+    refusal_reason: str = Field(default="", description="Why, when refused=true; empty otherwise")
     thread_id: str
     model_used: str
     mode: str

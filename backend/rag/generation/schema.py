@@ -29,3 +29,4 @@ class RAGAnswer(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     refused: bool = False
     confidence: str = "medium"
+    reason: str = Field(default="", description="Why this was refused (empty when not refused)")

@@ -1,7 +1,8 @@
 """Agentic query path as a LangGraph StateGraph (course: 04_agentic_rag.py).
 
 resolve -> [refuse | retrieve] -> grade -> [generate | rewrite->retrieve | refuse]
-The grade step is a simple, transparent check: did retrieval return anything?
+The grade step checks relevance, not just presence: did retrieval return
+anything, and does the top reranked chunk clear refusal_score_threshold?
 If not and retries remain, retry retrieval; otherwise refuse.
 """
 
@@ -12,12 +13,13 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.generation.generator import generate, refusal
 from rag.generation.schema import RAGAnswer
-from rag.query import QueryDeps, _retrieve
+from rag.query import QueryDeps, _retrieve, enrich_retrieval_query, relevance_refusal_reason
 from rag.retrieval.entity_resolver import parse_query, resolve
 
 
 class AgentState(TypedDict):
     question: str
+    retrieval_query: str
     sources: list[str]
     unresolved: list[str]
     docs: list
@@ -29,29 +31,36 @@ def build_agentic_app(deps: QueryDeps):
     def resolve_node(state: AgentState) -> dict:
         entities = parse_query(state["question"], deps.llm)
         res = resolve(entities, deps.entity_index)
-        return {"sources": res.sources, "unresolved": res.unresolved}
+        return {"sources": res.sources, "unresolved": res.unresolved,
+                "retrieval_query": enrich_retrieval_query(state["question"], res)}
 
     def retrieve_node(state: AgentState) -> dict:
-        docs = _retrieve(state["question"], "hybrid", state["sources"], deps)
+        docs = _retrieve(state["retrieval_query"], "hybrid", state["sources"], deps)
         return {"docs": docs}
 
     def generate_node(state: AgentState) -> dict:
         return {"answer": generate(state["question"], state["docs"], deps.llm,
-                                   deps.settings.max_tokens_per_request)}
+                                   deps.settings.max_context_tokens)}
 
     def rewrite_node(state: AgentState) -> dict:
         return {"retries": state["retries"] + 1}
 
     def refuse_node(state: AgentState) -> dict:
-        return {"answer": refusal(f"no filing matches {state['unresolved']}")}
+        if state["unresolved"]:
+            reason = f"no filing matches {state['unresolved']}"
+        else:
+            grade_reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold)
+            reason = f"{grade_reason} after {state['retries']} retries"
+        return {"answer": refusal(reason)}
 
     def after_resolve(state: AgentState) -> str:
         return "refuse" if not state["sources"] else "retrieve"
 
     def after_grade(state: AgentState) -> str:
-        if state["docs"]:
+        reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold)
+        if reason is None:
             return "generate"
-        return "rewrite" if state["retries"] < deps.settings.max_retries else "refuse"
+        return "rewrite" if state["retries"] < deps.settings.agentic_max_retries else "refuse"
 
     g = StateGraph(AgentState)
     for name, fn in [("resolve", resolve_node), ("retrieve", retrieve_node),
@@ -71,6 +80,6 @@ def build_agentic_app(deps: QueryDeps):
 
 def answer_agentic(question: str, deps: QueryDeps) -> RAGAnswer:
     app = build_agentic_app(deps)
-    final = app.invoke({"question": question, "sources": [], "unresolved": [],
-                        "docs": [], "answer": None, "retries": 0})
+    final = app.invoke({"question": question, "retrieval_query": question, "sources": [],
+                        "unresolved": [], "docs": [], "answer": None, "retries": 0})
     return final["answer"]

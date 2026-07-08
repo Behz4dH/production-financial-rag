@@ -25,5 +25,11 @@ def test_rerank_orders_by_score_and_truncates():
     assert out[0].metadata["page"] == 2  # the 'assets' doc ranks first
 
 
+def test_rerank_stamps_score_on_kept_docs():
+    out = rerank("total assets", _docs(), _FakeCrossEncoder(), top_n=2)
+    assert out[0].metadata["rerank_score"] == 2.0
+    assert out[1].metadata["rerank_score"] == 0.1
+
+
 def test_rerank_empty_is_noop():
     assert rerank("q", [], _FakeCrossEncoder(), top_n=5) == []

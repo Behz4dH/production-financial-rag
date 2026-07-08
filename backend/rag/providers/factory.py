@@ -22,7 +22,7 @@ def get_llm(settings: Settings | None = None, model: str | None = None) -> LLM:
         model_provider=settings.llm_provider,
         api_key=settings.groq_api_key,
         temperature=0,
-        max_retries=settings.max_retries,
+        max_retries=settings.llm_max_retries,
     )
 
 

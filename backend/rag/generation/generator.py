@@ -65,8 +65,9 @@ def generate(question: str, docs: list[Document], llm,
         refused=draft.refused,
         confidence=draft.confidence,
         citations=[] if draft.refused else _citations_from(docs),
+        reason="excerpts retrieved but insufficient to answer" if draft.refused else "",
     )
 
 
 def refusal(reason: str) -> RAGAnswer:
-    return RAGAnswer(answer="N/A", citations=[], refused=True, confidence="high")
+    return RAGAnswer(answer="N/A", citations=[], refused=True, confidence="high", reason=reason)
