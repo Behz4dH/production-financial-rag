@@ -28,6 +28,6 @@ dist/
 .vscode/
 .idea/
 
-# Conversation exports
+# Conversation exports (a pattern with no "/" matches at any depth, not just root)
 *-can-you-check-out-*.txt
-/20??-??-??-*.txt
+20??-??-??-*.txt
