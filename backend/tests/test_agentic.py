@@ -8,6 +8,7 @@ from rag.generation.schema import RAGAnswer
 from rag.query import QueryDeps
 from rag.retrieval.entity_resolver import QueryEntities, build_index
 from rag.retrieval.store import ChromaStore
+from rag.trace import TraceRecorder
 
 
 class _HashEmbeddings(Embeddings):
@@ -58,3 +59,38 @@ def test_agentic_answers_when_resolved(tmp_path):
     result = answer_agentic("assets of CrossFirst Bank in 2022?", deps)
     assert result.refused is False
     assert "5B" in result.answer
+
+
+def test_agentic_records_trace_on_success(tmp_path):
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    trace = TraceRecorder()
+    answer_agentic("assets of CrossFirst Bank in 2022?", deps, trace=trace)
+
+    stages = [s.stage for s in trace.steps]
+    assert stages == ["parse_query", "resolve_entities", "retrieve_candidates", "generate"]
+
+
+def test_agentic_records_rewrite_on_retry(tmp_path, monkeypatch):
+    import rag.agentic as agentic_mod
+
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    calls = {"n": 0}
+    real_retrieve = agentic_mod._retrieve
+
+    def flaky_retrieve(question, mode, sources, deps, trace=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            if trace is not None:
+                trace.record("retrieve_candidates", candidates=[])
+            return []  # first attempt: nothing found -> triggers a retry
+        return real_retrieve(question, mode, sources, deps, trace=trace)
+
+    monkeypatch.setattr(agentic_mod, "_retrieve", flaky_retrieve)
+
+    trace = TraceRecorder()
+    result = answer_agentic("assets of CrossFirst Bank in 2022?", deps, trace=trace)
+
+    assert result.refused is False
+    stages = [s.stage for s in trace.steps]
+    assert "rewrite" in stages
+    assert stages.count("retrieve_candidates") == 2  # first (empty) + retry
