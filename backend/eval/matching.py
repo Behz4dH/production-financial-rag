@@ -16,20 +16,26 @@ _SUFFIXES = {"inc", "incorporated", "ltd", "limited", "plc", "corp", "corporatio
              "sa", "ag", "llc", "co", "company", "holdings", "group", "the"}
 
 
-def parse_number(text: str) -> float | None:
+def parse_numbers(text: str) -> list[float]:
     cleaned = text.replace(",", "")
-    negative = "(" in cleaned and ")" in cleaned
-    match = re.search(r"-?\d+(?:\.\d+)?", cleaned)
-    if not match:
-        return None
-    value = float(match.group())
-    if negative and value > 0:
-        value = -value
-    return value
+    values = []
+    for m in re.finditer(r"\((-?\d+(?:\.\d+)?)\)|(-?\d+(?:\.\d+)?)", cleaned):
+        if m.group(1) is not None:
+            values.append(-abs(float(m.group(1))))
+        else:
+            values.append(float(m.group(2)))
+    return values
+
+
+def parse_number(text: str) -> float | None:
+    values = parse_numbers(text)
+    return values[0] if values else None
 
 
 def number_matches(pred: float, golden: float, rel_tol: float = 0.02) -> bool:
-    denom = abs(golden) if golden != 0 else 1.0
+    if golden == 0:
+        return abs(pred) <= rel_tol
+    denom = abs(golden)
     return any(abs(pred * scale - golden) <= rel_tol * denom for scale in _SCALES)
 
 
@@ -55,11 +61,18 @@ def is_correct(prediction: RAGAnswer, item: GoldenItem) -> bool:
         return na_acceptable
 
     if item.answer_type == "number":
-        pred_num = parse_number(prediction.answer)
-        if pred_num is None:
+        pred_nums = parse_numbers(prediction.answer)
+        if not pred_nums:
             return False
-        return any(not _is_na(g) and number_matches(pred_num, float(g))
-                   for g in item.answers if isinstance(g, (int, float)))
+        golden_nums = []
+        for g in item.answers:
+            if _is_na(g):
+                continue
+            try:
+                golden_nums.append(float(g))
+            except (TypeError, ValueError):
+                continue
+        return any(number_matches(p, g) for p in pred_nums for g in golden_nums)
 
     # name schema
     return any(not _is_na(g) and name_matches(prediction.answer, str(g))

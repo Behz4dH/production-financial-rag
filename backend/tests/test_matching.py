@@ -1,7 +1,7 @@
 """Answer matching: numeric scale tolerance, N/A, names, multi-valid."""
 
 from eval.golden import GoldenItem
-from eval.matching import is_correct, name_matches, number_matches, parse_number
+from eval.matching import is_correct, name_matches, number_matches, parse_number, parse_numbers
 from rag.generation.schema import RAGAnswer
 
 
@@ -13,10 +13,22 @@ def test_parse_number_handles_formats():
     assert parse_number("no number here") is None
 
 
+def test_parse_numbers_scopes_paren_negative_to_matched_number():
+    # An unrelated parenthetical elsewhere in the text must not flip the
+    # sign of a plain number that isn't itself paren-wrapped.
+    assert parse_numbers("Net income was 88,100,000 (see Note).") == [88100000.0]
+
+
 def test_number_matches_across_scales():
     assert number_matches(88.1, 88100000)       # millions vs absolute
     assert number_matches(88100000, 88.1)       # symmetric
     assert not number_matches(88.1, 999)
+
+
+def test_number_matches_zero_golden_no_false_positive():
+    assert number_matches(0, 0) is True
+    # previously true due to the 1e-9 scale fallback denom=1.0
+    assert number_matches(5000, 0) is False
 
 
 def test_name_matches_normalizes():
@@ -51,3 +63,16 @@ def test_multi_valid_answer_either_matches():
 def test_name_answer_matches_golden_name():
     item = GoldenItem(question="q", answer_type="name", answers=["MITSUI O.S.K. LINES"], category="compare")
     assert is_correct(_ans(answer="The answer is MITSUI O.S.K. Lines."), item) is True
+
+
+def test_numeric_answer_matches_via_prose_not_just_first_number():
+    # First number in the text (2023, the fiscal year) is not the answer;
+    # the real figure (88.1 -> 88.1M) appears later in the sentence.
+    item = GoldenItem(question="q", answer_type="number", answers=[88100000], category="retrieval")
+    assert is_correct(_ans(answer="In fiscal year 2023, net income was $88.1 million"), item) is True
+
+
+def test_numeric_answer_matches_string_typed_golden():
+    # Golden value authored as a JSON string must still be coerced and compared.
+    item = GoldenItem(question="q", answer_type="number", answers=["88100000"], category="retrieval")
+    assert is_correct(_ans(answer="88.1"), item) is True
