@@ -1,6 +1,6 @@
 """Run one retrieval mode over the benchmark and score each answer."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from eval.golden import GoldenItem
 from eval.matching import is_correct
