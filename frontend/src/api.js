@@ -6,7 +6,13 @@ async function postJson(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    if (!res.ok) throw new Error(`request failed: ${res.status}`);
+    throw new Error("invalid response from server");
+  }
   if (!res.ok) throw new Error(data.error || `request failed: ${res.status}`);
   return data;
 }
