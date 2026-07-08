@@ -11,3 +11,6 @@ run:
 
 eval:
 	PYTHONUTF8=1 uv run python -m eval.evaluate
+
+ui:
+	cd ../frontend && npm install && npm run dev

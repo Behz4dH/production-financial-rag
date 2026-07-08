@@ -17,3 +17,19 @@ make test                 # pytest
 ```
 
 Endpoints: `POST /chat {message, thread_id?, mode?}`, `GET /health`, `GET /metrics`.
+
+## Dashboard quickstart
+
+With the API running (`make run`, terminal 1), start the frontend in a second terminal:
+
+```bash
+cd backend
+make ui                   # installs deps and starts the Vite dev server on http://localhost:5173
+```
+
+Open `http://localhost:5173`. The **Chat** tab lets you ask a question and expand the pipeline
+trace panel to see each step the request went through — entity resolution -> retrieval ->
+reranking -> generation (or a short trace ending in a refusal, with the reason, for
+out-of-corpus or wrong-year questions). The **Eval Results** tab shows the benchmark table from
+the most recent `make eval` run; it requires `make eval` to have been run at least once so that
+`data/eval_results.json` exists.
