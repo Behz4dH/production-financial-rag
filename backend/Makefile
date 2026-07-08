@@ -10,4 +10,4 @@ run:
 	uv run uvicorn "app.main:create_app" --factory --reload --port 8000
 
 eval:
-	@echo "Eval harness arrives in a later plan"
+	PYTHONUTF8=1 uv run python -m eval.evaluate
