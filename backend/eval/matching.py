@@ -10,10 +10,9 @@ import re
 
 from eval.golden import GoldenItem
 from rag.generation.schema import RAGAnswer
+from rag.retrieval.entity_resolver import name_matches
 
 _SCALES = (1, 1e3, 1e6, 1e9, 1e-3, 1e-6, 1e-9)
-_SUFFIXES = {"inc", "incorporated", "ltd", "limited", "plc", "corp", "corporation",
-             "sa", "ag", "llc", "co", "company", "holdings", "group", "the"}
 
 
 def parse_numbers(text: str) -> list[float]:
@@ -37,16 +36,6 @@ def number_matches(pred: float, golden: float, rel_tol: float = 0.02) -> bool:
         return abs(pred) <= rel_tol
     denom = abs(golden)
     return any(abs(pred * scale - golden) <= rel_tol * denom for scale in _SCALES)
-
-
-def _tokens(name: str) -> frozenset[str]:
-    toks = re.findall(r"[a-z0-9]+", name.lower())
-    return frozenset(t for t in toks if t not in _SUFFIXES)
-
-
-def name_matches(pred: str, golden: str) -> bool:
-    a, b = _tokens(pred), _tokens(golden)
-    return bool(a) and bool(b) and (b <= a or a <= b)
 
 
 def _is_na(value) -> bool:

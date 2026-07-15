@@ -1,6 +1,8 @@
 """Query path: resolve entities -> (refuse | retrieve -> generate)."""
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from langchain_core.documents import Document
 
@@ -27,9 +29,6 @@ class QueryDeps:
 
 
 def build_deps(settings: Settings | None = None) -> QueryDeps:
-    import json
-    from pathlib import Path
-
     settings = settings or get_settings()
     store = ChromaStore(get_embeddings(settings), settings.chroma_dir, settings.collection_name)
     docstore_docs = load_docstore(settings.docstore_path)
@@ -65,14 +64,13 @@ def _retrieve_one(question, mode, sources, deps, trace: TraceRecorder | None = N
         retriever = build_hybrid_retriever(deps.store, deps.docstore_docs, sources,
                                            s.top_k, s.bm25_weight, s.vector_weight)
     candidates = retriever.invoke(question)
+    extra = {"source": source_label} if source_label is not None else {}
     if trace is not None:
-        extra = {"source": source_label} if source_label is not None else {}
         trace.record("retrieve_candidates", candidates=[_doc_snippet(d) for d in candidates], **extra)
     if deps.reranker is None:
         return candidates
     reranked = rerank(question, candidates, deps.reranker, s.top_n)
     if trace is not None:
-        extra = {"source": source_label} if source_label is not None else {}
         trace.record("rerank", chunks=[_doc_snippet(d, with_score=True) for d in reranked], **extra)
     return reranked
 

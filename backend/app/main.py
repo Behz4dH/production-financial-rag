@@ -99,7 +99,8 @@ def create_app(query_deps=None) -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(
         RateLimitExceeded,
-        lambda r, e: JSONResponse(status_code=429, content={"error": "rate limit exceeded"}),
+        lambda r, e: JSONResponse(status_code=429,
+                                  content=ErrorResponse(error="rate limit exceeded").model_dump()),
     )
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                        allow_methods=["*"], allow_headers=["*"])
@@ -199,7 +200,7 @@ def create_app(query_deps=None) -> FastAPI:
 
     @app.get("/eval-results")
     def eval_results(request: Request):
-        path = Path(settings.data_dir).parent / "eval_results.json"
+        path = Path(settings.eval_results_path)
         if not path.exists():
             return JSONResponse(status_code=404,
                                 content={"error": "no eval run yet - run `make eval`"})

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     embedding_cache_dir: str = "data/embeddings_cache"
     doc_metadata_path: str = "data/doc_metadata.json"
     docstore_path: str = "data/docstore.jsonl"
+    eval_results_path: str = "data/eval_results.json"
     collection_name: str = "financial_reports"
     metadata_extract_pages: int = 3
     metadata_extract_chars: int = 5000

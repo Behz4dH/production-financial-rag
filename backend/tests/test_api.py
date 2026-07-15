@@ -174,7 +174,7 @@ def test_chat_trace_not_cached_or_retried(client):
 def test_eval_results_404_when_missing(client, tmp_path, monkeypatch):
     from core.config import get_settings
     settings = get_settings()
-    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "docs"))
+    monkeypatch.setattr(settings, "eval_results_path", str(tmp_path / "eval_results.json"))
     r = client.get("/eval-results")
     assert r.status_code == 404
 
@@ -185,7 +185,7 @@ def test_eval_results_returns_report(client, monkeypatch, tmp_path):
     eval_path = tmp_path / "eval_results.json"
     eval_path.write_text(json.dumps({"modes": {"hybrid": {"overall": {"accuracy": 1.0}}}}),
                          encoding="utf-8")
-    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "docs"))
+    monkeypatch.setattr(settings, "eval_results_path", str(eval_path))
     r = client.get("/eval-results")
     assert r.status_code == 200
     assert r.json()["modes"]["hybrid"]["overall"]["accuracy"] == 1.0

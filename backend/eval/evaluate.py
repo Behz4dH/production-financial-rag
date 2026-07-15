@@ -58,9 +58,8 @@ def main() -> None:
     deps = build_deps(settings)
     report = build_report(items, _MODES, deps)
     print(render_table(report))
-    out = str(Path(settings.data_dir).parent / "eval_results.json")
-    write_results(report, out)
-    print(f"\nWrote {out}")
+    write_results(report, settings.eval_results_path)
+    print(f"\nWrote {settings.eval_results_path}")
 
 
 if __name__ == "__main__":

@@ -52,11 +52,13 @@ def _normalize(name: str) -> frozenset[str]:
     return frozenset(t for t in tokens if t not in _SUFFIXES)
 
 
-def _matches(asked: str, candidate: str) -> bool:
+def name_matches(asked: str, candidate: str) -> bool:
+    """True when one name's significant tokens are a subset of the other's
+    ("Petra Diamonds" matches "Petra Diamonds Limited"). Shared by resolution
+    and eval scoring so the two can't disagree on what counts as a match."""
     a, c = _normalize(asked), _normalize(candidate)
     if not a or not c:
         return False
-    # match when one name's significant tokens are a subset of the other's
     return a <= c or c <= a
 
 
@@ -84,7 +86,7 @@ class Resolution:
 def resolve(entities: QueryEntities, index: list[dict]) -> Resolution:
     res = Resolution()
     for company in entities.companies:
-        hit = next((rec["source"] for rec in index if _matches(company, rec["name"])), None)
+        hit = next((rec["source"] for rec in index if name_matches(company, rec["name"])), None)
         if hit is not None:
             if hit not in res.sources:
                 res.sources.append(hit)
