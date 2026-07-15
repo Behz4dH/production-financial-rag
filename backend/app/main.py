@@ -71,7 +71,7 @@ def _screen(message: str) -> tuple[str, JSONResponse | None]:
 def _build_response(rag_answer, body: ChatRequest, mode: str, settings, elapsed_ms: float) -> ChatResponse:
     """Assemble the API response shape; shared by /chat and /chat/trace so
     the two can't drift. PII masking is input-only (see core.security)."""
-    return to_chat_response(rag_answer, thread_id=body.thread_id, model_used=settings.primary_model,
+    return to_chat_response(rag_answer, model_used=settings.primary_model,
                             mode=mode, cached=False, processing_time_ms=elapsed_ms)
 
 

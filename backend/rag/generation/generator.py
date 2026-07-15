@@ -86,7 +86,9 @@ def _citations_from(docs: list[Document]) -> list[Citation]:
         page = int(d.metadata.get("page", 0) or 0)
         if (source, page) not in seen:
             seen.add((source, page))
-            cites.append(Citation(source=source, page=page))
+            cites.append(Citation(source=source, page=page,
+                                  company=d.metadata.get("company", ""),
+                                  fiscal_year=d.metadata.get("fiscal_year", "")))
     return cites
 
 

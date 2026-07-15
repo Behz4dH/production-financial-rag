@@ -94,11 +94,12 @@ def _retrieve(question, mode, sources, deps, trace: TraceRecorder | None = None)
     return docs
 
 
-def _companies_by_source(entity_index: list) -> dict[str, str]:
-    """source -> primary company name (build_index appends company_name first)."""
-    out: dict[str, str] = {}
+def _catalog_by_source(entity_index: list) -> dict[str, dict]:
+    """source -> {company, fiscal_year} (build_index lists company_name first)."""
+    out: dict[str, dict] = {}
     for rec in entity_index:
-        out.setdefault(rec["source"], rec["name"])
+        out.setdefault(rec["source"], {"company": rec["name"],
+                                       "fiscal_year": rec.get("fiscal_year") or ""})
     return out
 
 
@@ -107,10 +108,9 @@ def _corpus_inventory_answer(deps: QueryDeps, trace: TraceRecorder | None = None
     restricted to sources actually present in the index (the metadata file is
     a cache and may know filings that aren't ingested). No LLM involved."""
     indexed = {d.metadata.get("source") for d in deps.docstore_docs}
-    companies = _companies_by_source(deps.entity_index)
-    years = {rec["source"]: rec.get("fiscal_year") for rec in deps.entity_index}
-    lines = sorted(f"- {name} (fiscal year {years.get(src) or 'unknown'})"
-                   for src, name in companies.items() if src in indexed)
+    catalog = _catalog_by_source(deps.entity_index)
+    lines = sorted(f"- {info['company']} (fiscal year {info['fiscal_year'] or 'unknown'})"
+                   for src, info in catalog.items() if src in indexed)
     answer_text = (f"The current index contains {len(lines)} annual filings:\n"
                    + "\n".join(lines))
     if trace is not None:
@@ -229,11 +229,11 @@ def answer_linear(question: str, mode: str, deps: QueryDeps,
     # Company annotation happens at query time only — entity attributes are
     # never persisted onto chunks. Sources are opaque hash filenames, and
     # generation must attribute excerpts to companies on compare questions.
-    companies = _companies_by_source(deps.entity_index)
+    catalog = _catalog_by_source(deps.entity_index)
     for d in docs:
-        name = companies.get(d.metadata.get("source"))
-        if name:
-            d.metadata["company"] = name
+        info = catalog.get(d.metadata.get("source"))
+        if info:
+            d.metadata.update(info)
     if trace is not None:
         trace.record("expand_pages",
                      pages=[{"source": d.metadata.get("source"), "page": d.metadata.get("page")}

@@ -41,15 +41,6 @@ def test_similarity_search_returns_documents(tmp_path):
     assert isinstance(results[0], Document)
 
 
-def test_similarity_search_with_score_returns_pairs(tmp_path):
-    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_score")
-    store.add(_docs())
-    pairs = store.similarity_search_with_score("net income", k=2)
-    assert len(pairs) == 2
-    doc, score = pairs[0]
-    assert isinstance(doc, Document)
-    assert isinstance(score, float)
-
 
 def test_metadata_filter_restricts_results(tmp_path):
     store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_filter")

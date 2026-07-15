@@ -41,7 +41,6 @@ def test_defaults_are_applied():
     assert s.vector_store == "chroma"
     assert s.top_k == 20
     assert s.top_n == 5
-    assert s.enable_llm_guard is False
     assert s.rate_limit == "20/minute"
     assert s.retry_base_delay == 0.5
     # Reranking is where an absolute score gates refusal — the 8b model
@@ -62,11 +61,9 @@ def test_is_production_property():
 def test_env_overrides_are_typed(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "env-key")
     monkeypatch.setenv("TOP_K", "7")
-    monkeypatch.setenv("ENABLE_LLM_GUARD", "true")
     s = Settings(_env_file=None)
     assert s.groq_api_key == "env-key"
     assert s.top_k == 7 and isinstance(s.top_k, int)
-    assert s.enable_llm_guard is True
 
 
 def test_get_settings_is_cached():

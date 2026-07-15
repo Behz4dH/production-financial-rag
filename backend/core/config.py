@@ -17,10 +17,6 @@ class Settings(BaseSettings):
     fallback_model: str = "llama-3.3-70b-versatile"
     embedding_provider: str = "huggingface"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    # Final-stage reranker: "llm" (scores candidates, doubles as the refusal
-    # signal) or "cross_encoder" (local).
-    reranker_provider: str = "llm"
-    reranker_model: str = "BAAI/bge-reranker-base"  # cross_encoder path only
     # Must be a stronger model than the generation primary: the rerank score
     # gates refusal, and small models emit degenerate all-zero score batches.
     reranker_llm_model: str = "llama-3.3-70b-versatile"
@@ -49,7 +45,6 @@ class Settings(BaseSettings):
     refusal_score_threshold: float = 0.3
 
     # --- Security / reliability / limits ---
-    enable_llm_guard: bool = False
     llm_max_retries: int = 3       # SDK transport-level retries
     request_max_retries: int = 3   # with_retry() around a whole /chat call
     retry_base_delay: float = 0.5  # seconds; first backoff step

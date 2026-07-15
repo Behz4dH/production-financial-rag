@@ -416,3 +416,13 @@ def test_corpus_inventory_question_answers_from_catalog(tmp_path):
     assert "CrossFirst Bankshares, Inc." in result.answer
     assert "Parked Corp" not in result.answer
     assert "corpus_inventory" in [s.stage for s in trace.steps]
+
+
+def test_citations_carry_company_and_fiscal_year(tmp_path):
+    """Citation fields are populated from the entity index at query time —
+    the API model has advertised them since day one."""
+    deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
+    result = answer_linear("assets of CrossFirst Bank in 2022?", "hybrid", deps)
+    assert result.citations
+    assert result.citations[0].company == "CrossFirst Bankshares, Inc."
+    assert result.citations[0].fiscal_year == "2022"

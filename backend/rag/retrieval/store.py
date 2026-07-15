@@ -21,11 +21,6 @@ class VectorStore(ABC):
     ) -> list[Document]: ...
 
     @abstractmethod
-    def similarity_search_with_score(
-        self, query: str, k: int = 5, filter: dict | None = None
-    ) -> list[tuple[Document, float]]: ...
-
-    @abstractmethod
     def count(self) -> int: ...
 
     @abstractmethod
@@ -70,13 +65,6 @@ class ChromaStore(VectorStore):
         self, query: str, k: int = 5, filter: dict | None = None
     ) -> list[Document]:
         return self._store.similarity_search(query, k=k, filter=filter)
-
-    def similarity_search_with_score(
-        self, query: str, k: int = 5, filter: dict | None = None
-    ) -> list[tuple[Document, float]]:
-        pairs = self._store.similarity_search_with_score(query, k=k, filter=filter)
-        # Chroma returns numpy floats; make the contract plain Python floats.
-        return [(doc, float(score)) for doc, score in pairs]
 
     def as_retriever(self, k: int = 5, filter: dict | None = None):
         """A LangChain retriever over this store, optionally filtered."""

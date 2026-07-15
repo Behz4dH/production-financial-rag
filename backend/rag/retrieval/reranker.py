@@ -1,9 +1,9 @@
 """Final-stage reranking: score (query, chunk) pairs, keep the best.
 
-Both rerankers expose ``.predict(pairs) -> list[float]``, so the query path
-is agnostic to which is configured. The LLM reranker's rubric scores whether
-a chunk contains the asked-for figure — the signal the refusal gate needs —
-rather than topical similarity.
+The LLM reranker's rubric scores whether a chunk contains the asked-for
+figure — the signal the refusal gate needs — rather than topical similarity.
+The ``.predict(pairs) -> list[float]`` contract keeps the query path agnostic
+to the scorer implementation.
 """
 
 import json
@@ -84,22 +84,11 @@ class LLMReranker:
         return out
 
 
-def load_reranker(model_name: str):
-    """Load the cross-encoder (downloads weights on first use)."""
-    from sentence_transformers import CrossEncoder
-
-    return CrossEncoder(model_name)
-
-
-def build_reranker(settings, llm=None):
-    if settings.reranker_provider == "cross_encoder":
-        return load_reranker(settings.reranker_model)
-    if settings.reranker_provider == "llm":
-        if llm is None:
-            raise ValueError("reranker_provider='llm' requires an llm instance")
-        return LLMReranker(
-            llm,
-            snippet_chars=settings.rerank_snippet_chars,
-            batch_size=settings.rerank_batch_size,
-        )
-    raise ValueError(f"Unknown reranker_provider: {settings.reranker_provider}")
+def build_reranker(settings, llm):
+    if llm is None:
+        raise ValueError("build_reranker requires an llm instance")
+    return LLMReranker(
+        llm,
+        snippet_chars=settings.rerank_snippet_chars,
+        batch_size=settings.rerank_batch_size,
+    )

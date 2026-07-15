@@ -16,7 +16,6 @@ class Citation(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000,
                          description="The user's question")
-    thread_id: str = Field(default="default", description="Conversation thread ID")
     mode: Literal["basic", "hybrid"] | None = Field(
         default=None, description="basic | hybrid (defaults to configured mode)")
     top_k: int | None = Field(default=None, ge=1, le=50,
@@ -35,7 +34,6 @@ class ChatResponse(BaseModel):
     reasoning: str = Field(default="", description="The model's reasoning for this answer -- "
                            "which excerpt(s) it used and why they match. Empty only when refusal "
                            "happened before generation ran (entity or relevance gate).")
-    thread_id: str
     model_used: str
     mode: str
     cached: bool = False

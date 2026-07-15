@@ -4,7 +4,7 @@ from app.models import ChatResponse, Citation
 from rag.generation.schema import RAGAnswer
 
 
-def to_chat_response(rag_answer: RAGAnswer, *, thread_id: str, model_used: str,
+def to_chat_response(rag_answer: RAGAnswer, *, model_used: str,
                      mode: str, cached: bool, processing_time_ms: float) -> ChatResponse:
     citations = [Citation(source=c.source, company=c.company,
                           fiscal_year=c.fiscal_year, page=c.page)
@@ -15,7 +15,6 @@ def to_chat_response(rag_answer: RAGAnswer, *, thread_id: str, model_used: str,
         refused=rag_answer.refused,
         refusal_reason=rag_answer.reason,
         reasoning=rag_answer.reasoning,
-        thread_id=thread_id,
         model_used=model_used,
         mode=mode,
         cached=cached,
