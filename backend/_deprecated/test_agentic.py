@@ -1,24 +1,14 @@
 """Agentic path: refusal on unknown entity; answer when resolved (mocked LLM)."""
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 
-from rag.agentic import answer_agentic
+from _deprecated.agentic import answer_agentic
 from rag.generation.schema import RAGAnswer
 from rag.query import QueryDeps
 from rag.retrieval.entity_resolver import QueryEntities, build_index
 from rag.retrieval.store import ChromaStore
 from rag.trace import TraceRecorder
-
-
-class _HashEmbeddings(Embeddings):
-    def _v(self, t):
-        v = [0.0] * 8
-        for tok in t.lower().split():
-            v[hash(tok) % 8] += 1.0
-        return v
-    def embed_documents(self, texts): return [self._v(t) for t in texts]
-    def embed_query(self, text): return self._v(text)
+from tests.fakes import HashEmbeddings
 
 
 class _LLM:
@@ -37,7 +27,7 @@ class _LLM:
 def _deps(tmp_path, companies, year):
     docs = [Document(page_content="cross first total assets five billion",
                      metadata={"source": "cross.pdf", "page": 1, "chunk_id": "cross.pdf::p1::c0"})]
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "ag_test")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "ag_test")
     store.add(docs)
     meta = {"cross.pdf": {"company_name": "CrossFirst Bankshares, Inc.",
                           "aliases": ["CrossFirst Bank"], "fiscal_year": "2022"}}
@@ -71,7 +61,7 @@ def test_agentic_records_trace_on_success(tmp_path):
 
 
 def test_agentic_records_rewrite_on_retry(tmp_path, monkeypatch):
-    import rag.agentic as agentic_mod
+    import _deprecated.agentic as agentic_mod
 
     deps = _deps(tmp_path, ["CrossFirst Bank"], "2022")
     calls = {"n": 0}

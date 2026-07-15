@@ -39,7 +39,6 @@ export default function ChatPage() {
           <option value="">default mode</option>
           <option value="basic">basic</option>
           <option value="hybrid">hybrid</option>
-          <option value="agentic">agentic</option>
         </select>
         <input value={topK} onChange={(e) => setTopK(e.target.value)} placeholder="top_k" className="num" />
         <input value={topN} onChange={(e) => setTopN(e.target.value)} placeholder="top_n" className="num" />

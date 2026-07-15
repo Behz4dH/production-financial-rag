@@ -1,4 +1,19 @@
-"""Agentic query path as a LangGraph StateGraph (course: 04_agentic_rag.py).
+"""DEPRECATED — not wired into the active app. Kept for reference/possible
+revival, not imported by rag/query.py or exposed via the API's mode field.
+
+To revive: restore the "agentic" branch in rag/query.py's answer(), add
+"agentic" back to app/models.py's ChatRequest.mode Literal, restore
+Settings.agentic_max_retries in core/config.py, and move this file (and
+_deprecated/test_agentic.py) back to their original locations
+(rag/agentic.py, tests/test_agentic.py).
+
+Note: this package is named `_deprecated` (leading underscore), not
+`deprecated` — the latter is a real installed PyPI package (used by
+`limits`/`slowapi`), and a same-named local folder on the Python path
+shadows it and breaks the app at import time. Don't rename this back to
+`deprecated` without checking for that collision again.
+
+Agentic query path as a LangGraph StateGraph (course: 04_agentic_rag.py).
 
 resolve -> [refuse | retrieve] -> grade -> [generate | rewrite->retrieve | refuse]
 The grade step checks relevance, not just presence: did retrieval return
@@ -42,10 +57,11 @@ def build_agentic_app(deps: QueryDeps, trace: TraceRecorder | None = None):
         return {"docs": docs}
 
     def generate_node(state: AgentState) -> dict:
-        result = generate(state["question"], state["docs"], deps.llm, deps.settings.max_context_tokens)
+        result = generate(state["question"], state["docs"], deps.llm, deps.settings.max_context_tokens,
+                          multi_source=len(state["sources"]) > 1)
         if trace is not None:
             trace.record("generate", context_chunks=len(state["docs"]), refused=result.refused,
-                         confidence=result.confidence, answer=result.answer)
+                         confidence=result.confidence, answer=result.answer, reasoning=result.reasoning)
         return {"answer": result}
 
     def rewrite_node(state: AgentState) -> dict:
@@ -57,7 +73,8 @@ def build_agentic_app(deps: QueryDeps, trace: TraceRecorder | None = None):
         if state["unresolved"]:
             reason = f"no filing matches {state['unresolved']}"
         else:
-            grade_reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold)
+            grade_reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold,
+                                                     sources=state["sources"])
             reason = f"{grade_reason} after {state['retries']} retries"
         if trace is not None:
             trace.record("refuse", reason=reason)
@@ -67,7 +84,8 @@ def build_agentic_app(deps: QueryDeps, trace: TraceRecorder | None = None):
         return "refuse" if not state["sources"] else "retrieve"
 
     def after_grade(state: AgentState) -> str:
-        reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold)
+        reason = relevance_refusal_reason(state["docs"], deps.settings.refusal_score_threshold,
+                                          sources=state["sources"])
         if reason is None:
             return "generate"
         return "rewrite" if state["retries"] < deps.settings.agentic_max_retries else "refuse"

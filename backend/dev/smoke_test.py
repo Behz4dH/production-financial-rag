@@ -5,7 +5,7 @@ Runs three benchmark-style questions that exercise the three key behaviors:
   - wrong fiscal yr -> N/A (company is in the corpus, but not for that year)
   - unknown company -> N/A (company is not in the corpus)
 
-Usage (from backend/):  uv run python dev/smoke_test.py [basic|hybrid|agentic]
+Usage (from backend/):  uv run python dev/smoke_test.py [basic|hybrid]
 Requires GROQ_API_KEY in .env and a built index (run `make ingest` first).
 """
 
