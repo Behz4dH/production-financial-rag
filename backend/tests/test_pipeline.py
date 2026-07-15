@@ -4,22 +4,12 @@ import json
 from pathlib import Path
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 
 from core.config import Settings
 from rag.ingestion import pipeline
 from rag.ingestion.metadata import DocumentMetadata
 from rag.retrieval.store import ChromaStore
-
-
-class _HashEmbeddings(Embeddings):
-    def _vec(self, t):
-        v = [0.0] * 8
-        for tok in t.lower().split():
-            v[hash(tok) % 8] += 1.0
-        return v
-    def embed_documents(self, texts): return [self._vec(t) for t in texts]
-    def embed_query(self, text): return self._vec(text)
+from tests.fakes import HashEmbeddings
 
 
 class _FakeStructured:
@@ -53,7 +43,7 @@ def test_ingest_populates_store_and_docstore(tmp_path):
     (docs_dir / "b.md").write_text("Net income " * 60, encoding="utf-8")
 
     settings = _settings(tmp_path)
-    store = ChromaStore(_HashEmbeddings(), settings.chroma_dir, settings.collection_name)
+    store = ChromaStore(HashEmbeddings(), settings.chroma_dir, settings.collection_name)
 
     summary = pipeline.ingest(settings, store, _FakeLLM())
 
@@ -66,7 +56,7 @@ def test_ingest_populates_store_and_docstore(tmp_path):
     lines = Path(settings.docstore_path).read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == summary["chunks"]
     first = json.loads(lines[0])
-    assert set(first["metadata"].keys()) == {"source", "page", "chunk_id"}
+    assert set(first["metadata"].keys()) == {"source", "page", "chunk_id", "chunk_type"}
     assert "company" not in first["metadata"]
     assert "page_content" in first
 
@@ -81,7 +71,7 @@ def test_reingest_is_idempotent(tmp_path):
     docs_dir.mkdir()
     (docs_dir / "a.txt").write_text("Total assets " * 60, encoding="utf-8")
     settings = _settings(tmp_path)
-    store = ChromaStore(_HashEmbeddings(), settings.chroma_dir, settings.collection_name)
+    store = ChromaStore(HashEmbeddings(), settings.chroma_dir, settings.collection_name)
 
     s1 = pipeline.ingest(settings, store, _FakeLLM())
     count_after_first = store.count()

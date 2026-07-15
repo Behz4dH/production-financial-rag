@@ -1,20 +1,10 @@
 """Hybrid retriever = BM25 (source-filtered docs) + Chroma vector (source filter)."""
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 
 from rag.retrieval.hybrid import build_hybrid_retriever, vector_only_retriever
 from rag.retrieval.store import ChromaStore
-
-
-class _HashEmbeddings(Embeddings):
-    def _v(self, t):
-        v = [0.0] * 8
-        for tok in t.lower().split():
-            v[hash(tok) % 8] += 1.0
-        return v
-    def embed_documents(self, texts): return [self._v(t) for t in texts]
-    def embed_query(self, text): return self._v(text)
+from tests.fakes import HashEmbeddings
 
 
 def _docs():
@@ -27,7 +17,7 @@ def _docs():
 
 
 def _store(tmp_path):
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "hybrid_test")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "hybrid_test")
     store.add(_docs())
     return store
 

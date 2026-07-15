@@ -27,6 +27,10 @@ def ingest(settings: Settings, store: VectorStore, llm) -> dict:
     docstore = Path(settings.docstore_path)
     docstore.parent.mkdir(parents=True, exist_ok=True)
 
+    # Fresh vector store each run, in lock-step with the fresh docstore below —
+    # so a changed chunking scheme can't leave orphaned vectors behind.
+    store.reset()
+
     files = 0
     total_chunks = 0
     companies: list[str] = []

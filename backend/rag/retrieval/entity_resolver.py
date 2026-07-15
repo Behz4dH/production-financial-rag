@@ -1,8 +1,13 @@
-"""Resolve a question's company + fiscal year to source filing(s).
+"""Resolve a question's company to source filing(s).
 
-The refusal lever: if no filing matches the asked company (or the asked year
-differs from the filing's fiscal_year), there is nothing to retrieve from and
-the answer is N/A — decided here, before any retrieval or generation.
+The refusal lever here is company existence only: if no filing matches the
+asked company, there is nothing to retrieve from and the answer is N/A --
+decided before any retrieval or generation. Fiscal year is deliberately NOT
+gated here -- a 10-K reports multi-year comparatives (a FY2022 filing's
+balance sheet routinely includes FY2021 figures too), so a strict year match
+at this stage produced false refusals on legitimately answerable questions.
+Whether the retrieved text actually covers the asked year is left to
+generation's own reasoning, which can see the real page content.
 """
 
 import re
@@ -11,12 +16,17 @@ from dataclasses import dataclass, field
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
+from rag.providers.structured import invoke_structured
+
 _PARSE_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system",
          "Extract the company name(s) and the fiscal year the question asks about. "
          "Companies are usually named explicitly (often in quotes). If no year is "
-         "stated, leave fiscal_year null. Return every company mentioned."),
+         "stated, leave fiscal_year null. Return every company mentioned. "
+         "If the question asks about the document collection itself — which "
+         "companies, filings, or years are available — set "
+         "asks_corpus_inventory=true and leave companies empty."),
         ("human", "{question}"),
     ]
 )
@@ -26,10 +36,14 @@ class QueryEntities(BaseModel):
     companies: list[str] = Field(default_factory=list,
                                  description="Company name(s) the question is about")
     fiscal_year: str | None = Field(default=None, description="Asked fiscal year, e.g. '2022'")
+    asks_corpus_inventory: bool = Field(
+        default=False,
+        description="True if the question is about the corpus itself (which "
+                    "companies/filings/years are available), not about facts in a filing")
 
 
 def parse_query(question: str, llm) -> QueryEntities:
-    return llm.with_structured_output(QueryEntities).invoke(_PARSE_PROMPT.invoke({"question": question}))
+    return invoke_structured(llm, QueryEntities, _PARSE_PROMPT.invoke({"question": question}))
 
 
 _SUFFIXES = {"inc", "incorporated", "ltd", "limited", "plc", "corp", "corporation",
@@ -74,13 +88,7 @@ class Resolution:
 def resolve(entities: QueryEntities, index: list[dict]) -> Resolution:
     res = Resolution()
     for company in entities.companies:
-        hit = None
-        for rec in index:
-            if _matches(company, rec["name"]):
-                year_ok = entities.fiscal_year is None or rec["fiscal_year"] == entities.fiscal_year
-                if year_ok:
-                    hit = rec["source"]
-                    break
+        hit = next((rec["source"] for rec in index if _matches(company, rec["name"])), None)
         if hit is not None:
             if hit not in res.sources:
                 res.sources.append(hit)

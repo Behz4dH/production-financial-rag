@@ -1,25 +1,9 @@
 """ChromaStore over a deterministic fake embedding (no model download, local only)."""
 
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 
 from rag.retrieval.store import ChromaStore
-
-
-class _HashEmbeddings(Embeddings):
-    """Deterministic 8-dim embedding from token hashes — no network."""
-
-    def _vec(self, text: str):
-        v = [0.0] * 8
-        for tok in text.lower().split():
-            v[hash(tok) % 8] += 1.0
-        return v
-
-    def embed_documents(self, texts):
-        return [self._vec(t) for t in texts]
-
-    def embed_query(self, text):
-        return self._vec(text)
+from tests.fakes import HashEmbeddings
 
 
 def _docs():
@@ -32,13 +16,25 @@ def _docs():
 
 
 def test_add_and_count(tmp_path):
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "t_count")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_count")
     store.add(_docs())
     assert store.count() == 2
 
 
+def test_add_splits_batches_over_chroma_limit(tmp_path):
+    # A single add larger than Chroma's max batch must be sub-batched, not
+    # rejected — a table-dense filing can exceed it. Uses a tiny _MAX_BATCH so
+    # the test stays fast while still crossing the boundary.
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_batch")
+    store._MAX_BATCH = 100
+    docs = [Document(page_content=f"row {i}",
+                     metadata={"chunk_id": f"s::p1::t{i}"}) for i in range(250)]
+    store.add(docs)
+    assert store.count() == 250
+
+
 def test_similarity_search_returns_documents(tmp_path):
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "t_search")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_search")
     store.add(_docs())
     results = store.similarity_search("total assets", k=1)
     assert len(results) == 1
@@ -46,7 +42,7 @@ def test_similarity_search_returns_documents(tmp_path):
 
 
 def test_similarity_search_with_score_returns_pairs(tmp_path):
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "t_score")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_score")
     store.add(_docs())
     pairs = store.similarity_search_with_score("net income", k=2)
     assert len(pairs) == 2
@@ -56,7 +52,7 @@ def test_similarity_search_with_score_returns_pairs(tmp_path):
 
 
 def test_metadata_filter_restricts_results(tmp_path):
-    store = ChromaStore(_HashEmbeddings(), str(tmp_path / "chroma"), "t_filter")
+    store = ChromaStore(HashEmbeddings(), str(tmp_path / "chroma"), "t_filter")
     store.add(_docs())
     results = store.similarity_search("anything", k=5, filter={"company": "Petra Diamonds"})
     assert results

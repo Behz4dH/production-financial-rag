@@ -28,6 +28,9 @@ class VectorStore(ABC):
     @abstractmethod
     def count(self) -> int: ...
 
+    @abstractmethod
+    def reset(self) -> None: ...
+
 
 def _chunk_ids(docs: list[Document]) -> list[str] | None:
     """Deterministic ids from chunk_id so re-adding the same corpus upserts
@@ -50,10 +53,18 @@ class ChromaStore(VectorStore):
             persist_directory=persist_directory,
         )
 
+    # Chroma rejects a single add larger than this (max_batch_size), which a
+    # table-dense filing's chunk count can exceed — so add in sub-batches.
+    _MAX_BATCH = 5000
+
     def add(self, docs: list[Document]) -> None:
         if not docs:
             return
-        self._store.add_documents(docs, ids=_chunk_ids(docs))
+        ids = _chunk_ids(docs)
+        for i in range(0, len(docs), self._MAX_BATCH):
+            batch = docs[i:i + self._MAX_BATCH]
+            batch_ids = ids[i:i + self._MAX_BATCH] if ids is not None else None
+            self._store.add_documents(batch, ids=batch_ids)
 
     def similarity_search(
         self, query: str, k: int = 5, filter: dict | None = None
@@ -74,3 +85,12 @@ class ChromaStore(VectorStore):
     def count(self) -> int:
         # No public count on the LangChain wrapper; read the Chroma collection.
         return self._store._collection.count()
+
+    def reset(self) -> None:
+        """Drop all vectors so a fresh ingest can't leave stale ones behind.
+
+        Deterministic-id upsert only overwrites chunks whose id recurs; when a
+        document's chunking changes (e.g. a new chunk scheme, or a page now
+        yielding fewer prose pieces), the old ids are orphaned. Clearing first
+        keeps the vector store in lock-step with a fresh docstore."""
+        self._store.reset_collection()

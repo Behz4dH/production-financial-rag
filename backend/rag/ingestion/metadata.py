@@ -8,6 +8,8 @@ from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
 
+from rag.providers.structured import invoke_structured
+
 _PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -59,9 +61,7 @@ def first_pages_text(pages: list[Document], n: int, max_chars: int | None = None
 
 
 def extract_metadata(doc_text: str, llm) -> DocumentMetadata:
-    structured = llm.with_structured_output(DocumentMetadata)
-    prompt = _PROMPT.invoke({"text": doc_text})
-    return structured.invoke(prompt)
+    return invoke_structured(llm, DocumentMetadata, _PROMPT.invoke({"text": doc_text}))
 
 
 def _read_cache(cache_path: Path) -> dict:

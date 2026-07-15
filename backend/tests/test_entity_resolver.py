@@ -1,4 +1,4 @@
-"""Entity resolution: name/year matching (pure) + LLM query parse (mocked)."""
+"""Entity resolution: name matching, fiscal year not gated (pure) + LLM query parse (mocked)."""
 
 from rag.retrieval import entity_resolver as R
 from rag.retrieval.entity_resolver import QueryEntities
@@ -29,12 +29,16 @@ def test_resolve_matches_alias_and_correct_year():
     assert res.refuse is False
 
 
-def test_resolve_wrong_year_is_unresolved_refusal():
+def test_resolve_ignores_fiscal_year_mismatch():
+    # the filing on record is FY2022, but a question about FY2023 (or any
+    # other year) still resolves -- comparative figures for other years may
+    # genuinely be in the filing. Generation's own reasoning judges that,
+    # not this gate.
     e = QueryEntities(companies=["CrossFirst Bank"], fiscal_year="2023")
     res = R.resolve(e, _index())
-    assert res.sources == []
-    assert res.unresolved == ["CrossFirst Bank"]
-    assert res.refuse is True
+    assert res.sources == ["cross.pdf"]
+    assert res.unresolved == []
+    assert res.refuse is False
 
 
 def test_resolve_unknown_company_refuses():
