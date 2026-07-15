@@ -23,7 +23,7 @@ try:
 except Exception:
     pass
 
-from langchain_community.retrievers import BM25Retriever  # noqa: E402
+from rag.retrieval.bm25 import BM25Retriever
 
 import rag.retrieval.hybrid as hybrid  # noqa: E402
 from rag.query import build_deps  # noqa: E402

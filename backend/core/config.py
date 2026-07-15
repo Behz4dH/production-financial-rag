@@ -13,13 +13,16 @@ class Settings(BaseSettings):
     # --- LLM / embeddings ---
     groq_api_key: str
     llm_provider: str = "groq"
-    primary_model: str = "llama-3.1-8b-instant"
-    fallback_model: str = "llama-3.3-70b-versatile"
+    # Generation needs a mid-size model or better: small models refuse
+    # verbatim answers under the strict matching procedure. The fallback sits
+    # in a separate provider quota bucket on purpose.
+    primary_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    fallback_model: str = "openai/gpt-oss-120b"
     embedding_provider: str = "huggingface"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    # Must be a stronger model than the generation primary: the rerank score
-    # gates refusal, and small models emit degenerate all-zero score batches.
-    reranker_llm_model: str = "llama-3.3-70b-versatile"
+    # The rerank score gates refusal; small models emit degenerate all-zero
+    # score batches, so this must never drop below mid-size.
+    reranker_llm_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     rerank_snippet_chars: int = 500  # table-row values can sit hundreds of chars in
     rerank_batch_size: int = 20      # per-call size stays under provider TPM caps
 

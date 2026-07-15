@@ -36,17 +36,16 @@ def test_required_key_missing_raises():
 
 def test_defaults_are_applied():
     s = _make()
-    assert s.primary_model == "llama-3.1-8b-instant"
+    assert s.primary_model == "meta-llama/llama-4-scout-17b-16e-instruct"
+    assert s.fallback_model == "openai/gpt-oss-120b"
     assert s.embedding_model == "BAAI/bge-small-en-v1.5"
     assert s.vector_store == "chroma"
     assert s.top_k == 20
     assert s.top_n == 5
     assert s.rate_limit == "20/minute"
     assert s.retry_base_delay == 0.5
-    # Reranking is where an absolute score gates refusal — the 8b model
-    # degenerates to all-zero scores on batches of weak candidates, so the
-    # scoring model defaults to the stronger 70b.
-    assert s.reranker_llm_model == "llama-3.3-70b-versatile"
+    # The rerank score gates refusal; the scorer must never be a small model.
+    assert s.reranker_llm_model == "meta-llama/llama-4-scout-17b-16e-instruct"
     # Question+context budget; system prompt + tool schema add ~1000 tokens,
     # and the whole request must stay under Groq free-tier 6000 TPM for the
     # generation model — an 8000-token prompt can NEVER succeed there.
