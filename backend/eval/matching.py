@@ -53,7 +53,23 @@ def _is_na(value) -> bool:
     return isinstance(value, str) and value.strip().upper() == "N/A"
 
 
-def is_correct(prediction: RAGAnswer, item: GoldenItem) -> bool:
+def _alias_bridged(pred: str, golden: str, alias_groups: list[list[str]] | None) -> bool:
+    """True when pred and golden are both names of the same entity.
+
+    "MOL Group" shares no tokens with "MITSUI O.S.K. LINES", but both match
+    names inside the same doc_metadata alias group — without this bridge the
+    eval marks a substantively correct answer wrong whenever the model replies
+    with a filer's alias instead of the benchmark's chosen spelling.
+    """
+    for group in alias_groups or []:
+        if (any(name_matches(pred, name) for name in group)
+                and any(name_matches(golden, name) for name in group)):
+            return True
+    return False
+
+
+def is_correct(prediction: RAGAnswer, item: GoldenItem,
+               alias_groups: list[list[str]] | None = None) -> bool:
     na_acceptable = any(_is_na(a) for a in item.answers)
     refused = prediction.refused or _is_na(prediction.answer)
 
@@ -75,5 +91,7 @@ def is_correct(prediction: RAGAnswer, item: GoldenItem) -> bool:
         return any(number_matches(p, g) for p in pred_nums for g in golden_nums)
 
     # name schema
-    return any(not _is_na(g) and name_matches(prediction.answer, str(g))
+    return any(not _is_na(g)
+               and (name_matches(prediction.answer, str(g))
+                    or _alias_bridged(prediction.answer, str(g), alias_groups))
                for g in item.answers)

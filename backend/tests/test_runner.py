@@ -33,3 +33,63 @@ def test_run_mode_captures_errors():
     rows = run_mode(_items()[:1], "hybrid", deps=None, answer_fn=boom)
     assert rows[0].correct is False
     assert "provider down" in rows[0].error
+
+
+class _RateLimited(Exception):
+    def __init__(self):
+        super().__init__("429 too many requests")
+        self.status_code = 429
+
+
+def test_run_mode_retries_rate_limits_until_success():
+    """Free-tier TPM limits make sustained eval runs 429 — the runner must
+    self-pace with retries instead of recording dead rows."""
+    calls = {"n": 0}
+
+    def flaky_answer(question, mode, deps):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _RateLimited()
+        return RAGAnswer(answer="N/A", refused=True)
+
+    items = [GoldenItem(question="q?", answer_type="number", answers=["N/A"],
+                        category="hallucination")]
+    rows = run_mode(items, "basic", deps=None, answer_fn=flaky_answer,
+                    retry_base_delay=0.0)
+    assert rows[0].error == ""
+    assert rows[0].correct is True
+    assert calls["n"] == 3
+
+
+def test_run_mode_does_not_retry_deterministic_errors():
+    calls = {"n": 0}
+
+    class _BadRequest(Exception):
+        status_code = 400
+
+    def bad_answer(question, mode, deps):
+        calls["n"] += 1
+        raise _BadRequest("bad request")
+
+    items = [GoldenItem(question="q?", answer_type="number", answers=["1"])]
+    rows = run_mode(items, "basic", deps=None, answer_fn=bad_answer,
+                    retry_base_delay=0.0)
+    assert calls["n"] == 1  # no pointless retries against a 400
+    assert rows[0].error != ""
+
+
+def test_run_mode_scores_alias_answers_via_deps_entity_index():
+    class _Deps:
+        entity_index = [
+            {"source": "mol.pdf", "name": "Mitsui O.S.K. Lines, Ltd.", "fiscal_year": "2022"},
+            {"source": "mol.pdf", "name": "MOL", "fiscal_year": "2022"},
+        ]
+
+    def alias_answer(question, mode, deps):
+        return RAGAnswer(answer="MOL Group", refused=False)
+
+    items = [GoldenItem(question="who had higher equity?", answer_type="name",
+                        answers=["MITSUI O.S.K. LINES"])]
+    rows = run_mode(items, "hybrid", deps=_Deps(), answer_fn=alias_answer,
+                    retry_base_delay=0.0)
+    assert rows[0].correct is True

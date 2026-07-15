@@ -18,6 +18,26 @@ make test                 # pytest
 
 Endpoints: `POST /chat {message, thread_id?, mode?}`, `GET /health`, `GET /metrics`.
 
+## Eval regression gate
+
+The benchmark doubles as a release gate: `eval/baseline.json` (committed) holds
+the accepted per-mode quality bar, and the gate fails when a fresh run regresses.
+
+```bash
+make eval                 # run the benchmark -> data/eval_results.json
+make gate                 # compare against eval/baseline.json (exit 1 on regression)
+make baseline             # accept the current results as the new bar (commit the diff)
+```
+
+Gate rules: refusal accuracy (hallucination resistance) may not drop at all;
+overall accuracy may drop at most 3% per mode (one flipped question of 40 —
+slack for LLM nondeterminism). Improvements pass; committing the updated
+baseline is how the bar gets raised, so a raise is itself code-reviewed.
+
+In CI (`.github/workflows/`): `ci.yml` runs the test suite on every push/PR;
+`eval-gate.yml` rebuilds the index and runs the real benchmark + gate on PRs
+that touch pipeline code (needs the `GROQ_API_KEY` repository secret).
+
 ## Dashboard quickstart
 
 With the API running (`make run`, terminal 1), start the frontend in a second terminal:

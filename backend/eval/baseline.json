@@ -1,0 +1,12 @@
+{
+  "modes": {
+    "basic": {
+      "overall_accuracy": 0.9,
+      "refusal_accuracy": 1.0
+    },
+    "hybrid": {
+      "overall_accuracy": 1.0,
+      "refusal_accuracy": 1.0
+    }
+  }
+}

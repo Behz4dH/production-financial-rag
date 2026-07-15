@@ -76,3 +76,23 @@ def test_numeric_answer_matches_string_typed_golden():
     # Golden value authored as a JSON string must still be coerced and compared.
     item = GoldenItem(question="q", answer_type="number", answers=["88100000"], category="retrieval")
     assert is_correct(_ans(answer="88.1"), item) is True
+
+
+def test_name_match_bridges_aliases_of_same_entity():
+    """'MOL Group' vs golden 'MITSUI O.S.K. LINES' share no tokens, but both
+    are names of the same filer — alias groups from doc_metadata must bridge
+    them, else the eval understates whichever pipeline answers with an alias."""
+    from eval.golden import GoldenItem
+    from eval.matching import is_correct
+    from rag.generation.schema import RAGAnswer
+
+    groups = [["Mitsui O.S.K. Lines, Ltd.", "MOL", "Mitsui O.S.K. Lines"]]
+    item = GoldenItem(question="q?", answer_type="name",
+                      answers=["MITSUI O.S.K. LINES"])
+    pred = RAGAnswer(answer="MOL Group", refused=False)
+    assert is_correct(pred, item) is False                      # without aliases
+    assert is_correct(pred, item, alias_groups=groups) is True  # bridged
+
+    # A name matching NO group member must not be bridged.
+    stranger = RAGAnswer(answer="Tradition", refused=False)
+    assert is_correct(stranger, item, alias_groups=groups) is False

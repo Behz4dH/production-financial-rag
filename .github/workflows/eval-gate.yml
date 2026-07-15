@@ -1,0 +1,64 @@
+# The regression gate: rebuild the index, run the real 40-question benchmark
+# against the live model, and fail the PR if quality dropped vs the committed
+# baseline (eval/baseline.json).
+#
+# Runs only on PRs that touch pipeline code (docs/frontend PRs skip it — the
+# benchmark spends real LLM calls) and on manual dispatch. Requires the
+# GROQ_API_KEY repository secret.
+name: Eval regression gate
+
+on:
+  pull_request:
+    paths:
+      - "backend/rag/**"
+      - "backend/eval/**"
+      - "backend/core/**"
+      - "backend/app/**"
+      - "backend/data/benchmark/**"
+      - "backend/data/doc_metadata.json"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+  workflow_dispatch:
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      # Embedding vectors are content-addressed (CacheBackedEmbeddings), so a
+      # warm cache makes `make ingest` skip re-embedding unchanged chunks.
+      - name: Cache embeddings
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/data/embeddings_cache
+            ~/.cache/huggingface
+          key: embeddings-${{ hashFiles('backend/data/docs/**') }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Rebuilds Chroma + docstore from the committed PDFs. Entity metadata is
+      # served from the committed doc_metadata.json cache — no LLM calls here.
+      - name: Build index
+        run: make ingest
+
+      - name: Run benchmark
+        run: make eval
+
+      - name: Regression gate
+        run: make gate
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: backend/data/eval_results.json

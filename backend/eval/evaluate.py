@@ -10,7 +10,7 @@ from eval.metrics import aggregate, refusal_accuracy
 from eval.runner import run_mode
 from rag.query import answer, build_deps
 
-_MODES = ["basic", "hybrid", "agentic"]
+_MODES = ["basic", "hybrid"]
 
 
 def build_report(items, modes, deps, answer_fn=answer) -> dict:
