@@ -1,65 +1,61 @@
-"""render_table_rows: header/data split + one atomic self-contained line per
-data row (no captions)."""
+"""Markdown pipe-tables -> atomic, caption'd, self-contained row lines.
 
-from rag.ingestion.tables import render_table_rows
+pymupdf4llm renders financial tables as markdown with labels/units/headings
+intact; each DATA row becomes one term-dense index unit carrying the table's
+caption and its column headers. Markup is stripped for indexing (BM25
+tokenizes on whitespace — `equity**|` never matches `equity`)."""
+
+from rag.ingestion.tables import plain_text, render_markdown_table_rows
+
+INCOME_STATEMENT = """|US$ million|Notes|**2022**|Restated 2021 ¹|
+|---|---|---|---|
+|Revenue|2|**585.2**|406.9|
+|**Profit for the Year**||**88.1**|196.6|""".splitlines()
 
 
-def test_each_data_row_becomes_one_labelled_line():
-    grid = [
-        ["", "31.12.2022", "31.12.2021"],          # header row (mostly words/dates)
-        ["Total shareholders' equity", "146,469", "187,780"],
-        ["Revenue", "1,000", "900"],
-    ]
-    rows = render_table_rows(grid)
+def test_each_data_row_becomes_one_captioned_line():
+    rows = render_markdown_table_rows(INCOME_STATEMENT, "Consolidated Income Statement")
     assert rows == [
-        "Total shareholders' equity -- 31.12.2022: 146,469; 31.12.2021: 187,780",
-        "Revenue -- 31.12.2022: 1,000; 31.12.2021: 900",
+        "Consolidated Income Statement — Revenue: Notes: 2; 2022: 585.2; Restated 2021 ¹: 406.9",
+        "Consolidated Income Statement — Profit for the Year: 2022: 88.1; Restated 2021 ¹: 196.6",
     ]
 
 
-def test_row_label_not_duplicated_as_a_value():
-    grid = [
-        ["Item", "2022"],
-        ["Net income", "88.1"],
-    ]
-    rows = render_table_rows(grid)
-    assert rows == ["Net income -- 2022: 88.1"]
+def test_rows_without_caption_still_render():
+    rows = render_markdown_table_rows(INCOME_STATEMENT, "")
+    assert rows[0].startswith("Revenue:")
 
 
-def test_blank_rows_are_skipped():
-    grid = [
-        ["", "2022"],
-        ["", ""],
-        ["Assets", "5,679.5"],
-    ]
-    rows = render_table_rows(grid)
-    assert rows == ["Assets -- 2022: 5,679.5"]
+def test_multiline_headers_and_bold_markup_are_flattened():
+    table = """||**December 31,**<br>**2022**|**December 31,**<br>**2021**|
+|---|---|---|
+|Total intangible assets|$5,944.1|$5,679.5|""".splitlines()
+    rows = render_markdown_table_rows(table, "Note 7")
+    assert rows == ["Note 7 — Total intangible assets: "
+                    "December 31, 2022: $5,944.1; December 31, 2021: $5,679.5"]
 
 
-def test_no_caption_prefix():
-    # Rows carry only their own label + column headers, never a table title.
-    grid = [["Metric", "FY2022"], ["Free cash flow", "409.7"]]
-    rows = render_table_rows(grid)
-    assert rows == ["Free cash flow -- FY2022: 409.7"]
+def test_numeric_label_cells_are_not_mistaken_for_labels():
+    table = """|Metric|2022|
+|---|---|
+|409.7|1,000.0|""".splitlines()
+    rows = render_markdown_table_rows(table, "")
+    # no wordy label cell -> values render without a fake label
+    assert rows == ["Metric: 409.7; 2022: 1,000.0"]
 
 
-def test_has_data_rows_accepts_financial_grids():
-    from rag.ingestion.tables import has_data_rows
+def test_empty_and_separator_rows_are_skipped():
+    table = """|A|B|
+|---|---|
+||||
+|Assets|5,679.5|""".splitlines()
+    rows = render_markdown_table_rows(table, "")
+    assert rows == ["Assets: B: 5,679.5"]
 
-    assert has_data_rows([["", "2021", "2020"],
-                          ["Intangibles, gross", "5,679.5", "5,516.0"]]) is True
-    assert has_data_rows([["Profit for the Year", "88.1", "196.6"]]) is True
-    assert has_data_rows([["Costs", "(391.5)", "(356.1)"]]) is True
 
-
-def test_has_data_rows_rejects_prose_and_header_fragments():
-    from rag.ingestion.tables import has_data_rows
-
-    # Pure prose over-boxed by text-strategy detection.
-    assert has_data_rows([["Dear shareholders", "this year"],
-                          ["we delivered", "strong results"]]) is False
-    # Page-header fragment: its only "numbers" are a page number and a year.
-    # Bare integers must NOT qualify a grid as financial data — these junk
-    # rows otherwise flood BM25 with the query's own tokens (company + year).
-    assert has_data_rows([["146", "Petra Diamonds"],
-                          ["2022", "Annual Report"]]) is False
+def test_plain_text_strips_markup_but_keeps_content():
+    md = "###### **Total** shareholders' equity | 146,469 |<br>next"
+    out = plain_text(md)
+    assert "**" not in out and "|" not in out and "<br>" not in out and "#" not in out
+    assert "Total shareholders' equity" in out
+    assert "146,469" in out

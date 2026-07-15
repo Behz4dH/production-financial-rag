@@ -32,36 +32,39 @@ from rag.retrieval.reranker import rerank  # noqa: E402
 # Match on the answer figure's substring rather than a fixed chunk_id: with
 # row-level table chunking the answer now lives in a `::t{idx}` table chunk, and
 # the substring is stable across chunk-scheme changes.
+#
+# Cases target the CURRENT 5-filing slice corpus; each figure is hand-verified
+# with a page reference (see data/benchmark/answers.json comments).
 CASES = [
     {
-        "label": "MITSUI shareholders' equity FY2022",
-        "question": "What was the shareholders' equity of Mitsui O.S.K. Lines in fiscal year 2022?",
-        "source": "6054ec55767fbe6585598ced7afacf5cb8619a13.pdf",
-        "target": "1,274,570",
+        "label": "Holley net sales FY2022 (p36/p53)",
+        "question": 'What was the net sales of "Holley Inc." in the fiscal year 2022?',
+        "source": "194000c9109c6fa628f1fed33b44ae4c2b8365f4.pdf",
+        "target": "688,415",
     },
     {
-        "label": "Tradition shareholders' equity FY2022",
-        "question": "What was the total shareholders' equity of Compagnie Financiere Tradition SA in fiscal year 2022?",
-        "source": "2779336b845a41544348abb7b3e6e5bd2ff893a2.pdf",
-        "target": "146,469",
+        "label": "First Mid total assets FY2022 (p44 balance sheet)",
+        "question": 'What was the total assets of "First Mid Bancshares, Inc." in the fiscal year 2022?',
+        "source": "e765cdd472cb47fa74ee6a52700c61aca645bbee.pdf",
+        "target": "6,744,215",
     },
     {
-        "label": "Petra Diamonds net income FY2022",
-        "question": "What was the net income of Petra Diamonds in fiscal year 2022?",
-        "source": "609042c64a759c0ac63e7cf18742be4dd3cc5cd5.pdf",
-        "target": "88.1",
-    },
-    {
-        "label": "Sensata free cash flow FY2021",
-        "question": "What was the free cash flow of Sensata in fiscal year 2021?",
-        "source": "e33544bdea57faa0ad10ba2e93bf052482f33325.pdf",
-        "target": "409.7",
-    },
-    {
-        "label": "TransUnion intangible assets FY2021 (known-failing control)",
+        "label": "TransUnion intangible assets FY2021 (p122, historic control)",
         "question": 'What was the intangible assets of "TransUnion" in the fiscal year 2021?',
         "source": "85fb23ba2910de45e27f8f40170c0f3576043916.pdf",
         "target": "3,770.6",
+    },
+    {
+        "label": "Baker Steel NAV per share FY2022 (p65)",
+        "question": 'What was the net asset value per share of "Baker Steel Resources Trust" in the fiscal year 2022?',
+        "source": "84749ef5c2bbf2a302b6614f31727a95bf29f309.pdf",
+        "target": "79.4",
+    },
+    {
+        "label": "Safe & Green revenue FY2022",
+        "question": 'What was the revenue of "Safe & Green Holdings Corp." in the fiscal year 2022?',
+        "source": "f06d7ecc8072de616a4ea35c74e20199de6b0691.pdf",
+        "target": "24,393,946",
     },
 ]
 

@@ -2,15 +2,15 @@
   "modes": {
     "basic": {
       "overall": {
-        "correct": 9,
+        "correct": 7,
         "total": 10,
-        "accuracy": 0.9
+        "accuracy": 0.7
       },
       "by_category": {
         "retrieval": {
-          "correct": 4,
+          "correct": 3,
           "total": 4,
-          "accuracy": 1.0
+          "accuracy": 0.75
         },
         "compare": {
           "correct": 0,
@@ -18,9 +18,9 @@
           "accuracy": 0.0
         },
         "tricky": {
-          "correct": 2,
+          "correct": 1,
           "total": 2,
-          "accuracy": 1.0
+          "accuracy": 0.5
         },
         "hallucination": {
           "correct": 3,
@@ -73,9 +73,9 @@
           3770600000,
           5679500000
         ],
-        "predicted": "$3,770.6",
-        "refused": false,
-        "correct": true,
+        "predicted": "N/A",
+        "refused": true,
+        "correct": false,
         "error": ""
       },
       {
@@ -85,7 +85,7 @@
         "expected": [
           688415000
         ],
-        "predicted": "688,415",
+        "predicted": "688.4 million",
         "refused": false,
         "correct": true,
         "error": ""
@@ -97,7 +97,7 @@
         "expected": [
           6744215000
         ],
-        "predicted": "$6.7 billion",
+        "predicted": "$ 6,744,215",
         "refused": false,
         "correct": true,
         "error": ""
@@ -145,9 +145,9 @@
         "expected": [
           79.4
         ],
-        "predicted": "79.4 pence",
-        "refused": false,
-        "correct": true,
+        "predicted": "N/A",
+        "refused": true,
+        "correct": false,
         "error": ""
       },
       {
@@ -196,7 +196,7 @@
           3770600000,
           5679500000
         ],
-        "predicted": "$3,770.6",
+        "predicted": "The intangible assets of TransUnion in the fiscal year 2021 were $3,770.6 million.",
         "refused": false,
         "correct": true,
         "error": ""
@@ -208,7 +208,7 @@
         "expected": [
           688415000
         ],
-        "predicted": "$688,415",
+        "predicted": "688.4 million",
         "refused": false,
         "correct": true,
         "error": ""
@@ -220,7 +220,7 @@
         "expected": [
           6744215000
         ],
-        "predicted": "$6.7 billion",
+        "predicted": "$ 6,744,215",
         "refused": false,
         "correct": true,
         "error": ""
@@ -268,7 +268,7 @@
         "expected": [
           79.4
         ],
-        "predicted": "79.4 pence",
+        "predicted": "79.4",
         "refused": false,
         "correct": true,
         "error": ""

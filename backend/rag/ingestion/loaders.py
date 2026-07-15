@@ -1,102 +1,92 @@
-"""Load PDFs (PyMuPDF text + real table detection) and plain text files.
+"""Load PDFs via one layout-aware markdown parse (pymupdf4llm) + text files.
 
-PyMuPDF's ``find_tables()`` detects the borderless, whitespace-aligned tables
-in financial statements that line-based extractors miss. Each detected table is
-rendered into atomic per-row lines (see ``rag.ingestion.tables``) and carried
-on the page as ``metadata['table_rows']`` so ``chunk_pages`` can emit each row
-as its own unsplittable chunk. Detected table regions are subtracted from the
-narrative text so the same figures are not duplicated.
+This replaces the geometric era — `find_tables()` strategy juggling, bbox
+subtraction, genuineness and junk heuristics — with a single text stream:
+pymupdf4llm renders each page to markdown with tables as pipe-tables (labels,
+units, headings intact), so data can neither vanish nor duplicate at a
+detection boundary. Two corpus-measured cleanups happen here:
+
+- running headers/footers (any line on >=40% of a document's pages, min 5)
+  and bare page-number lines are stripped — boilerplate-led chunks pushed
+  figures past the reranker's snippet window and fed BM25 junk tokens;
+- markdown table blocks become caption'd atomic row lines (see tables.py),
+  and the narrative keeps only prose, markup-stripped for indexing.
 
 Interface note: one Document *per page* (metadata ``{source, page,
-table_rows}``). The extraction engine is an internal detail; the page-oriented
-contract that chunking, metadata extraction, and page-level citations depend on
-is unchanged. ``table_rows`` is transient page metadata — it never reaches the
-docstore (only chunk Documents are persisted).
+table_rows}``) — unchanged from the geometric loader, so chunking, metadata
+extraction, and page-level citations are untouched. ``table_rows`` is
+transient page metadata; only chunk Documents are persisted.
 """
 
+import re
+from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
 
-import pymupdf
+import pymupdf4llm
 from langchain_core.documents import Document
 
-from rag.ingestion.tables import has_data_rows, render_table_rows
+from rag.ingestion.tables import plain_text, render_markdown_table_rows
 
 _TEXT_EXT = {".md", ".txt"}
+_BOILERPLATE_MIN_PAGES = 5
+_BOILERPLATE_FRACTION = 0.4
+_PAGE_NUMBER_LINE = re.compile(r"[\d\s\-–—]*")
 
 
-def _is_genuine_table(table) -> bool:
-    """A genuine table has >= 2 rows AND >= 2 columns.
-
-    ``find_tables()`` over-detects, boxing prose (e.g. a chairman's letter) as a
-    single-column 'table'; this filter rejects those. Only *kept* tables are
-    subtracted from the narrative, so anything filtered out still survives as
-    text.
-    """
-    return table.row_count >= 2 and table.col_count >= 2
+def _norm(line: str) -> str:
+    return " ".join(line.split())
 
 
-def _page_tables(page) -> list[tuple["pymupdf.Rect", list[str]]]:
-    """(bbox, rendered_rows) for each table kept on the page.
+def _boilerplate_lines(pages: list[dict]) -> set[str]:
+    """Lines repeating on >=40% of a document's pages (min 5) — running
+    headers/footers. Table lines are never treated as boilerplate."""
+    freq: Counter[str] = Counter()
+    for page in pages:
+        for line in {_norm(ln) for ln in page["text"].splitlines() if ln.strip()}:
+            freq[line] += 1
+    threshold = max(_BOILERPLATE_MIN_PAGES, _BOILERPLATE_FRACTION * len(pages))
+    return {line for line, count in freq.items()
+            if count >= threshold and not line.startswith("|")}
 
-    Default (line-based) detection first. Borderless filings — no drawn table
-    lines anywhere, e.g. the TransUnion 10-K — detect nothing that way, so a
-    page with no default hits retries with strategy="text". Text strategy
-    over-boxes prose, so a fallback table is kept only if it renders at least
-    one numeric data row: otherwise its region would be subtracted from the
-    narrative with nothing emitted in its place (silent data loss).
-    """
-    tables = [t for t in page.find_tables().tables if _is_genuine_table(t)]
-    if tables:
-        return [(pymupdf.Rect(t.bbox), render_table_rows(t.extract())) for t in tables]
-    kept = []
-    for t in page.find_tables(strategy="text").tables:
-        if not _is_genuine_table(t):
-            continue
-        grid = t.extract()
-        if not has_data_rows(grid):  # prose over-boxed as a "table"
-            continue
-        rows = render_table_rows(grid)
-        if rows:
-            kept.append((pymupdf.Rect(t.bbox), rows))
-    return kept
+
+def _split_page(lines: list[str]) -> tuple[str, list[str]]:
+    """(plain narrative, caption'd table row lines) for one page's markdown."""
+    prose: list[str] = []
+    rows: list[str] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].lstrip().startswith("|"):
+            table = []
+            while i < len(lines) and lines[i].lstrip().startswith("|"):
+                table.append(lines[i])
+                i += 1
+            # nearest preceding non-empty prose line = the table's heading or
+            # intro sentence; it stays in the narrative too (it's a heading)
+            caption = next((ln for ln in reversed(prose) if ln.strip()), "")
+            rows.extend(render_markdown_table_rows(table, plain_text(caption)))
+        else:
+            prose.append(lines[i])
+            i += 1
+    return plain_text("\n".join(prose)), rows
 
 
 def load_pdf(path: str | Path) -> list[Document]:
     path = Path(path)
-    doc = pymupdf.open(str(path))
-    try:
-        out: list[Document] = []
-        for page in doc:
-            detected = _page_tables(page)
-            boxes = [box for box, _ in detected]
-
-            if boxes:
-                # Narrative = text blocks whose box is not inside any table region.
-                blocks = page.get_text("blocks")
-                narrative = "\n".join(
-                    b[4]
-                    for b in blocks
-                    if not any(pymupdf.Rect(b[:4]) in bx for bx in boxes)
-                )
-            else:
-                narrative = page.get_text()
-
-            table_rows: list[str] = [row for _, rows in detected for row in rows]
-
-            out.append(
-                Document(
-                    page_content=narrative,
-                    metadata={
-                        "source": path.name,
-                        "page": page.number + 1,
-                        "table_rows": table_rows,
-                    },
-                )
-            )
-        return out
-    finally:
-        doc.close()
+    pages = pymupdf4llm.to_markdown(str(path), page_chunks=True, show_progress=False)
+    boilerplate = _boilerplate_lines(pages)
+    out: list[Document] = []
+    for page in pages:
+        kept = [ln for ln in page["text"].splitlines()
+                if _norm(ln) not in boilerplate
+                and not _PAGE_NUMBER_LINE.fullmatch(_norm(ln))]
+        narrative, table_rows = _split_page(kept)
+        out.append(Document(
+            page_content=narrative,
+            metadata={"source": path.name,
+                      "page": page["metadata"]["page_number"],
+                      "table_rows": table_rows}))
+    return out
 
 
 def load_text(path: str | Path) -> list[Document]:

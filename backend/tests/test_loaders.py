@@ -1,59 +1,79 @@
-"""Loader logic tested offline: text/markdown via temp files, PDF via a fake
-PyMuPDF (real ``pymupdf.Rect`` for geometry, faked I/O — no real PDF opened)."""
+"""Loader contract tests, offline: pymupdf4llm is faked via monkeypatch.
 
-import pymupdf
-from langchain_core.documents import Document
+The interface is unchanged from the geometric era — one Document per page
+with metadata {source, page, table_rows} — but the inside is a single
+layout-aware markdown parse: no table detection strategies, no bbox
+subtraction, no genuineness/junk heuristics."""
+
+from langchain_core.documents import Document  # noqa: F401  (fixture parity)
 
 from rag.ingestion import loaders
 
 
-# --- Fake PyMuPDF objects (only the surface load_pdf touches) ---------------
+def _page(number: int, text: str) -> dict:
+    return {"metadata": {"page_number": number}, "text": text}
 
 
-class _FakeTable:
-    def __init__(self, rows, cols, bbox, grid=None):
-        self.row_count = rows
-        self.col_count = cols
-        self.bbox = bbox
-        self._grid = grid or []
-
-    def extract(self):
-        return self._grid
+def _fake_to_markdown(pages):
+    def fake(path, page_chunks=True, show_progress=False):
+        return pages
+    return fake
 
 
-class _FakeFinder:
-    def __init__(self, tables):
-        self.tables = tables
+def test_load_pdf_emits_captioned_table_rows_and_plain_narrative(monkeypatch, tmp_path):
+    md = """Management discussion follows.
+
+# Consolidated Income Statement
+
+|US$ million|**2022**|2021|
+|---|---|---|
+|Revenue|**585.2**|406.9|
+
+Notes continue here."""
+    monkeypatch.setattr(loaders.pymupdf4llm, "to_markdown",
+                        _fake_to_markdown([_page(1, md)]))
+    pdf = tmp_path / "filing.pdf"
+    pdf.write_bytes(b"%PDF stub")
+
+    docs = loaders.load_pdf(pdf)
+
+    assert len(docs) == 1
+    assert docs[0].metadata["source"] == "filing.pdf"
+    assert docs[0].metadata["page"] == 1
+    # the table's data row is an atomic caption'd unit, NOT in the narrative
+    assert docs[0].metadata["table_rows"] == [
+        "Consolidated Income Statement — Revenue: 2022: 585.2; 2021: 406.9"]
+    assert "585.2" not in docs[0].page_content
+    # narrative is markup-stripped prose
+    assert "Management discussion follows." in docs[0].page_content
+    assert "Notes continue here." in docs[0].page_content
+    assert "|" not in docs[0].page_content and "#" not in docs[0].page_content
 
 
-class _FakePage:
-    def __init__(self, number, text, blocks, tables, text_tables=None):
-        self.number = number
-        self._text = text
-        self._blocks = blocks
-        self._tables = tables
-        self._text_tables = text_tables or []
-        self.text_strategy_calls = 0
+def test_load_pdf_strips_running_headers_and_page_numbers(monkeypatch, tmp_path):
+    boiler = "Strategic Report Corporate Governance Financial Statements"
+    pages = [_page(i + 1, f"{boiler}\n{i + 1}\nUnique content {i}.") for i in range(12)]
+    monkeypatch.setattr(loaders.pymupdf4llm, "to_markdown", _fake_to_markdown(pages))
+    pdf = tmp_path / "boiler.pdf"
+    pdf.write_bytes(b"%PDF stub")
 
-    def find_tables(self, strategy=None):
-        if strategy == "text":
-            self.text_strategy_calls += 1
-            return _FakeFinder(self._text_tables)
-        return _FakeFinder(self._tables)
+    docs = loaders.load_pdf(pdf)
 
-    def get_text(self, mode="text"):
-        return self._blocks if mode == "blocks" else self._text
+    assert all(boiler not in d.page_content for d in docs)      # running header gone
+    assert "Unique content 3." in docs[3].page_content          # real content kept
+    assert all(d.page_content.strip() != str(i + 1) for i, d in enumerate(docs))
 
 
-class _FakeDoc:
-    def __init__(self, pages):
-        self._pages = pages
+def test_load_pdf_rare_lines_survive_stripping(monkeypatch, tmp_path):
+    # a line on 2 of 12 pages is content, not boilerplate
+    rare = "Total assets were 5,118,490 thousand."
+    pages = [_page(i + 1, rare if i < 2 else f"Filler {i}.") for i in range(12)]
+    monkeypatch.setattr(loaders.pymupdf4llm, "to_markdown", _fake_to_markdown(pages))
+    pdf = tmp_path / "rare.pdf"
+    pdf.write_bytes(b"%PDF stub")
 
-    def __iter__(self):
-        return iter(self._pages)
-
-    def close(self):
-        pass
+    docs = loaders.load_pdf(pdf)
+    assert rare in docs[0].page_content
 
 
 def test_load_text_reads_markdown(tmp_path):
@@ -72,118 +92,6 @@ def test_load_document_dispatches_and_rejects_unknown(tmp_path):
 
     with pytest.raises(ValueError):
         loaders.load_document(p)
-
-
-def test_load_pdf_emits_table_rows_and_prose_only_narrative(monkeypatch, tmp_path):
-    # Page 1: a genuine 3x3 table + narrative. The table's block sits INSIDE the
-    # table bbox and must be subtracted from the narrative (no duplication). The
-    # table is rendered into atomic row strings carried on metadata["table_rows"],
-    # NOT concatenated into page_content.
-    grid = [
-        ["", "2022", "2021"],
-        ["Net sales", "688,415", "600,000"],
-    ]
-    table = _FakeTable(3, 3, (0, 15, 60, 60), grid)
-    blocks_p1 = [
-        (0, 0, 10, 10, "Management discussion follows.", 0, 0),  # outside table
-        (0, 20, 50, 55, "Net sales 688,415", 1, 0),  # inside table bbox -> dropped
-    ]
-    page1 = _FakePage(0, "unused when blocks used", blocks_p1, [table])
-    # Page 2: no tables -> narrative comes straight from get_text(), rows empty.
-    page2 = _FakePage(1, "Total assets 5,118,490", [], [])
-
-    monkeypatch.setattr(loaders.pymupdf, "open", lambda path: _FakeDoc([page1, page2]))
-
-    pdf = tmp_path / "84749ef5.pdf"
-    pdf.write_bytes(b"%PDF-1.4 stub")
-    docs = loaders.load_pdf(pdf)
-
-    assert len(docs) == 2
-    assert docs[0].metadata["source"] == "84749ef5.pdf"
-    assert docs[0].metadata["page"] == 1
-    assert docs[0].metadata["table_rows"] == ["Net sales -- 2022: 688,415; 2021: 600,000"]
-    assert "Management discussion follows." in docs[0].page_content  # narrative kept
-    assert "Net sales 688,415" not in docs[0].page_content          # table block subtracted
-    assert "688,415" not in docs[0].page_content                    # figures live in table_rows
-    assert docs[1].metadata["page"] == 2
-    assert docs[1].metadata["table_rows"] == []
-    assert "Total assets 5,118,490" in docs[1].page_content
-
-
-def test_load_pdf_filters_non_genuine_tables(monkeypatch, tmp_path):
-    # A 1-column "table" (prose wrongly boxed) must be ignored; page text kept.
-    prose_box = _FakeTable(4, 1, (0, 0, 40, 40))
-    page = _FakePage(0, "Dear shareholders, this year we...", [], [prose_box])
-    monkeypatch.setattr(loaders.pymupdf, "open", lambda path: _FakeDoc([page]))
-
-    pdf = tmp_path / "x.pdf"
-    pdf.write_bytes(b"%PDF stub")
-    docs = loaders.load_pdf(pdf)
-
-    assert len(docs) == 1
-    # No genuine table -> no rows emitted, narrative = get_text().
-    assert docs[0].metadata["table_rows"] == []
-    assert "Dear shareholders, this year we..." in docs[0].page_content
-
-
-def test_load_pdf_falls_back_to_text_strategy_for_borderless_tables(monkeypatch, tmp_path):
-    # Borderless filings (e.g. the TransUnion 10-K) have NO drawn table lines,
-    # so the default strategy detects nothing; strategy="text" must be tried.
-    grid = [
-        ["", "2021", "2020"],
-        ["Intangible assets, gross", "5,679.5", "5,516.0"],
-    ]
-    text_table = _FakeTable(2, 3, (0, 15, 60, 60), grid)
-    blocks = [
-        (0, 0, 10, 10, "Note 7 discussion.", 0, 0),          # outside table
-        (0, 20, 50, 55, "Intangible assets 5,679.5", 1, 0),  # inside -> subtracted
-    ]
-    page = _FakePage(0, "unused", blocks, tables=[], text_tables=[text_table])
-    monkeypatch.setattr(loaders.pymupdf, "open", lambda path: _FakeDoc([page]))
-
-    pdf = tmp_path / "borderless.pdf"
-    pdf.write_bytes(b"%PDF stub")
-    docs = loaders.load_pdf(pdf)
-
-    assert docs[0].metadata["table_rows"] == [
-        "Intangible assets, gross -- 2021: 5,679.5; 2020: 5,516.0"]
-    assert "Note 7 discussion." in docs[0].page_content
-    assert "5,679.5" not in docs[0].page_content  # region subtracted from narrative
-
-
-def test_text_strategy_table_without_data_rows_is_ignored(monkeypatch, tmp_path):
-    # strategy="text" over-boxes prose as "tables". A fallback table that
-    # renders ZERO numeric data rows must be discarded entirely — otherwise
-    # its region is subtracted from the narrative with nothing emitted in its
-    # place (silent data loss).
-    prose_grid = [
-        ["Dear shareholders", "this year"],
-        ["we delivered", "strong results"],
-    ]
-    prose_table = _FakeTable(2, 2, (0, 0, 40, 40), prose_grid)
-    page = _FakePage(0, "Dear shareholders, this year we delivered strong results.",
-                     [], tables=[], text_tables=[prose_table])
-    monkeypatch.setattr(loaders.pymupdf, "open", lambda path: _FakeDoc([page]))
-
-    pdf = tmp_path / "prose.pdf"
-    pdf.write_bytes(b"%PDF stub")
-    docs = loaders.load_pdf(pdf)
-
-    assert docs[0].metadata["table_rows"] == []
-    assert "Dear shareholders" in docs[0].page_content  # narrative untouched
-
-
-def test_text_strategy_not_consulted_when_default_finds_tables(monkeypatch, tmp_path):
-    grid = [["", "2022"], ["Net sales", "688,415"]]
-    table = _FakeTable(2, 2, (0, 15, 60, 60), grid)
-    page = _FakePage(0, "text", [(0, 0, 10, 10, "Narrative.", 0, 0)], tables=[table])
-    monkeypatch.setattr(loaders.pymupdf, "open", lambda path: _FakeDoc([page]))
-
-    pdf = tmp_path / "bordered.pdf"
-    pdf.write_bytes(b"%PDF stub")
-    loaders.load_pdf(pdf)
-
-    assert page.text_strategy_calls == 0  # primary path byte-for-byte unchanged
 
 
 def test_load_directory_yields_supported_files(tmp_path):
