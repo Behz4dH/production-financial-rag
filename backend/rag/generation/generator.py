@@ -68,10 +68,8 @@ _COMPARISON_PROMPT = ChatPromptTemplate.from_messages(
 def format_context(docs: list[Document]) -> str:
     parts = []
     for i, d in enumerate(docs, 1):
-        # Prefer the query-time company annotation: source filenames are
-        # opaque hashes, and on compare questions the model must be able to
-        # attribute each excerpt to a company or it refuses ("no information
-        # for company B") with B's figures sitting right in front of it.
+        # Company name over the hash filename: compare questions require the
+        # model to attribute each excerpt to a company.
         src = d.metadata.get("company") or d.metadata.get("source", "unknown")
         page = d.metadata.get("page", "?")
         parts.append(f"[{i}] ({src} p{page}) {d.page_content}")
@@ -94,19 +92,11 @@ def _citations_from(docs: list[Document]) -> list[Citation]:
 
 def _fit_context(question: str, docs: list[Document], max_tokens: int,
                  multi_source: bool = False) -> list[Document]:
-    """Drop lowest-ranked chunks until question + context fits the token budget.
-
-    Docs arrive ranked best-first, so we drop from the end. This guards against
-    context overflow — the real token risk is the assembled prompt, not the
-    already length-capped question. Always keeps at least one chunk. Uses the
-    margined count: cl100k underestimates Llama tokens on numeric-dense text,
-    and Groq's per-minute cap 413s on the REAL size, not our estimate.
-
-    multi_source=True additionally keeps at least one doc per source: blind
-    tail-trimming on a compare question can drop EVERY page of the company
-    whose pages rank lower, and generation then refuses ("no information for
-    company B") despite retrieval having done its job.
-    """
+    """Drop lowest-ranked docs (from the end; they arrive best-first) until
+    question + context fits the budget, using the margined token count.
+    Always keeps at least one doc — and with multi_source, at least one doc
+    per source, so a compare question can't lose a company entirely to
+    trimming."""
     kept = list(docs)
     while len(kept) > 1 and count_tokens_with_margin(question + format_context(kept)) > max_tokens:
         for i in range(len(kept) - 1, -1, -1):
@@ -124,11 +114,8 @@ def _fit_context(question: str, docs: list[Document], max_tokens: int,
 
 def generate(question: str, docs: list[Document], llm,
              max_tokens: int | None = None, multi_source: bool = False) -> RAGAnswer:
-    """multi_source=True (a "compare A vs B" question, more than one source
-    resolved) switches to a prompt with an extra currency-conversion
-    instruction -- the schema is the same AnswerDraft either way, since
-    reasoning is now always requested, not just for comparisons.
-    """
+    """multi_source=True (more than one source resolved) adds a currency-
+    conversion instruction to the prompt; the schema is unchanged."""
     if max_tokens is not None:
         docs = _fit_context(question, docs, max_tokens, multi_source=multi_source)
     prompt = _COMPARISON_PROMPT if multi_source else _PROMPT

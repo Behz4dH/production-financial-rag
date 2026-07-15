@@ -1,21 +1,10 @@
-"""Load PDFs via one layout-aware markdown parse (pymupdf4llm) + text files.
+"""Load PDFs via a layout-aware markdown parse (pymupdf4llm) + text files.
 
-This replaces the geometric era — `find_tables()` strategy juggling, bbox
-subtraction, genuineness and junk heuristics — with a single text stream:
-pymupdf4llm renders each page to markdown with tables as pipe-tables (labels,
-units, headings intact), so data can neither vanish nor duplicate at a
-detection boundary. Two corpus-measured cleanups happen here:
-
-- running headers/footers (any line on >=40% of a document's pages, min 5)
-  and bare page-number lines are stripped — boilerplate-led chunks pushed
-  figures past the reranker's snippet window and fed BM25 junk tokens;
-- markdown table blocks become caption'd atomic row lines (see tables.py),
-  and the narrative keeps only prose, markup-stripped for indexing.
-
-Interface note: one Document *per page* (metadata ``{source, page,
-table_rows}``) — unchanged from the geometric loader, so chunking, metadata
-extraction, and page-level citations are untouched. ``table_rows`` is
-transient page metadata; only chunk Documents are persisted.
+Per page: strip running headers/footers and bare page-number lines, render
+markdown table blocks into caption'd atomic row lines (tables.py), keep the
+markup-stripped prose as narrative. One Document per page with metadata
+``{source, page, table_rows}``; ``table_rows`` is transient page metadata —
+only chunk Documents are persisted.
 """
 
 import re

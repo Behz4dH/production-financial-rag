@@ -3,7 +3,7 @@ restricted to the resolved source filing(s).
 
 Built per query because the source set is small (usually 1-3 filings), so BM25
 indexes only those filings' chunks and the vector search filters by source.
-Uses LangChain's EnsembleRetriever + BM25Retriever (course: advanced_rag.py).
+Uses LangChain's EnsembleRetriever + BM25Retriever.
 """
 
 from langchain_classic.retrievers import EnsembleRetriever

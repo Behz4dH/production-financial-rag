@@ -1,12 +1,8 @@
-"""Request-path security: prompt-injection screening + PII masking.
+"""Request-path security: prompt-injection screening and input PII masking.
 
-Trimmed from the course security_patterns.py to the pieces the API needs on the
-hot path (no per-request LLM guard). Enabling an LLM-based guard is a documented
-later enhancement (settings.enable_llm_guard).
-
-PII masking is INPUT-ONLY, deliberately: answers are derived from public
-filings (no PII to leak), and masking generated answers corrupted legitimate
-figures — a plain 10-digit share count reads as a "phone number" to the regex.
+Masking is input-only: answers derive from public filings, and masking
+generated output corrupts legitimate figures (a plain 10-digit share count
+matches the phone pattern).
 """
 
 import re
@@ -56,7 +52,7 @@ _pii = PIIDetector()
 
 
 def screen_input(text: str) -> tuple[bool, str]:
-    """(blocked, cleaned). Blocked on injection; otherwise sanitized + PII-masked."""
+    """(blocked, cleaned). Blocked on injection; otherwise sanitized + masked."""
     suspicious, _ = _sanitizer.is_suspicious(text)
     if suspicious:
         return True, text

@@ -87,10 +87,7 @@ class ChromaStore(VectorStore):
         return self._store._collection.count()
 
     def reset(self) -> None:
-        """Drop all vectors so a fresh ingest can't leave stale ones behind.
-
-        Deterministic-id upsert only overwrites chunks whose id recurs; when a
-        document's chunking changes (e.g. a new chunk scheme, or a page now
-        yielding fewer prose pieces), the old ids are orphaned. Clearing first
-        keeps the vector store in lock-step with a fresh docstore."""
+        """Drop all vectors before a fresh ingest: deterministic-id upsert
+        only overwrites recurring ids, so a changed chunking scheme would
+        otherwise orphan stale vectors."""
         self._store.reset_collection()

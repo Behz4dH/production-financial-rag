@@ -12,19 +12,10 @@ class Citation(BaseModel):
 
 
 class AnswerDraft(BaseModel):
-    """What the LLM produces -- a flat schema (small models are unreliable at
-    nested structured output). Citations are attached from the retrieved
-    chunks, not asked of the model.
-
-    `reasoning` is declared BEFORE `answer` deliberately: structured-output
-    models fill fields in declaration order, so writing reasoning first
-    conditions the answer on it (chain-of-thought via field ordering, not a
-    second LLM call). This is what lets refusal carry a real explanation
-    instead of a fixed string, and what lets entity resolution skip the
-    fiscal-year check -- the model has to check the excerpt actually matches
-    the asked company/period/metric here, not just something similar or
-    adjacent, before it's allowed to answer.
-    """
+    """The LLM's output. Flat on purpose (nested structured output is
+    unreliable), and `reasoning` is declared before `answer` on purpose:
+    fields fill in declaration order, so the answer is conditioned on the
+    written reasoning. Citations are never asked of the model."""
 
     reasoning: str = Field(description="Follow the matching procedure from the system "
                            "instructions: define the exact metric/entity/period the question "

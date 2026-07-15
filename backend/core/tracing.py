@@ -1,5 +1,5 @@
 """LangSmith tracing setup. Opt-in: sets the env vars LangChain reads so tracing
-is automatic, or no-ops when disabled/unset (course: langsmith_setup.py)."""
+is automatic, or no-ops when disabled/unset."""
 
 import os
 

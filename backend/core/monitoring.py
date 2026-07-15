@@ -1,8 +1,7 @@
-"""In-memory request metrics for the /metrics endpoint (course: monitoring.py).
+"""In-memory request metrics for /metrics.
 
-Counters (requests, errors, tokens) are cumulative; latency stats (avg, p99)
-cover a bounded rolling window so a long-lived process doesn't grow one float
-per request forever.
+Counters are cumulative; latency stats cover a bounded rolling window so a
+long-lived process doesn't grow a float per request forever.
 """
 
 from collections import deque

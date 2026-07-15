@@ -1,17 +1,9 @@
-"""Final-stage reranking: score each (query, chunk) pair and keep the best.
+"""Final-stage reranking: score (query, chunk) pairs, keep the best.
 
-Two interchangeable rerankers, selected by ``settings.reranker_provider``:
-
-- ``cross_encoder`` — a local ``sentence_transformers`` cross-encoder. Fast and
-  offline, but it systematically scores fluent prose above terse tabular text,
-  so it buries the dense financial-table rows this corpus is full of.
-- ``llm`` (default) — one LLM call that scores every candidate for whether it
-  actually contains the asked-for figure. Recognizes table rows the
-  cross-encoder misses, and its score doubles as the refusal signal
-  (``relevance_refusal_reason`` in ``rag.query``).
-
-Both implement the same duck-typed contract — ``.predict(pairs) -> list[float]``
-— so ``rerank`` and the whole query path are agnostic to which one is loaded.
+Both rerankers expose ``.predict(pairs) -> list[float]``, so the query path
+is agnostic to which is configured. The LLM reranker's rubric scores whether
+a chunk contains the asked-for figure — the signal the refusal gate needs —
+rather than topical similarity.
 """
 
 import json
@@ -36,10 +28,8 @@ Respond with ONLY a JSON array, no prose, one entry per excerpt:
 
 
 def rerank(query: str, docs: list[Document], model, top_n: int) -> list[Document]:
-    """Rank by reranker score, keep the top_n, and stamp each kept doc's score
-    onto its metadata (query-time only — never persisted) so callers can judge
-    how relevant the best match actually was, not just whether any match
-    exists."""
+    """Keep the top_n by score, stamping each kept doc's rerank_score onto its
+    metadata (query-time only, never persisted)."""
     if not docs:
         return docs
     scores = model.predict([(query, d.page_content) for d in docs])
@@ -51,14 +41,8 @@ def rerank(query: str, docs: list[Document], model, top_n: int) -> list[Document
 
 
 class LLMReranker:
-    """Scores candidates with a single LLM call, exposing the same
-    ``.predict(pairs) -> list[float]`` contract as a cross-encoder.
-
-    All pairs in one ``rerank`` call share the query (``pairs[i][0]``); the
-    candidate texts are ``pairs[i][1]``. Long candidates are truncated to
-    ``snippet_chars`` — this must stay generous (default 500): a multi-year
-    table row can push the asked-for period's value hundreds of characters in.
-    """
+    """Scores candidates in batched LLM calls; same ``.predict`` contract as a
+    cross-encoder. All pairs in one call share the query."""
 
     def __init__(self, llm, snippet_chars: int = 500, batch_size: int = 40):
         self._llm = llm
@@ -79,10 +63,8 @@ class LLMReranker:
         return scores
 
     def _score_batch(self, question: str, texts: list[str]) -> dict[int, float]:
-        lines = []
-        for i, text in enumerate(texts):
-            snippet = " ".join(text.split())[:self._snippet_chars]
-            lines.append(f"{i}: {snippet}")
+        lines = [f"{i}: {' '.join(text.split())[:self._snippet_chars]}"
+                 for i, text in enumerate(texts)]
         raw = self._llm.invoke(
             _RERANK_PROMPT.format(question=question, excerpts="\n".join(lines))
         ).content
@@ -110,11 +92,6 @@ def load_reranker(model_name: str):
 
 
 def build_reranker(settings, llm=None):
-    """Pick the reranker by ``settings.reranker_provider``.
-
-    ``llm`` is required for the ``llm`` provider (the caller passes the same
-    chat model used for generation).
-    """
     if settings.reranker_provider == "cross_encoder":
         return load_reranker(settings.reranker_model)
     if settings.reranker_provider == "llm":

@@ -1,17 +1,11 @@
-"""Robust structured-output invocation for Groq-hosted models.
+"""Structured-output invocation with recovery from Groq's strict validation.
 
-Groq validates tool arguments STRICTLY against the schema before we ever see
-them, and models — Scout especially — routinely emit payloads that are
-substantively correct but formally off: booleans as strings ("true"), arrays
-as strings ("[]"), the whole call wrapped in `[{"name", "parameters"}]`, or
-the 8b's `<function=...> {...}` prefix. Groq rejects these with a
-`tool_use_failed` 400 whose body carries the raw payload verbatim.
-
-Discarding a correct answer over a formatting quibble is strictly worse than
-recovering it, so every structured call site (entity parse, generation,
-metadata extraction) goes through here: try the call; on tool_use_failed,
-parse the failed payload leniently; if even that fails, retry the call once
-(Groq generations vary run-to-run); only then raise.
+Models emit substantively-correct payloads with formal defects — string
+booleans, stringified arrays, ``[{"name", "parameters"}]`` envelopes,
+``<function=...>`` prefixes — which Groq rejects as ``tool_use_failed``
+while returning the raw payload in the error body. Every structured call
+site shares this path: parse the rejected payload leniently; failing that,
+retry the call once; only then raise.
 """
 
 import json

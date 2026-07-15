@@ -1,13 +1,9 @@
 """Resolve a question's company to source filing(s).
 
-The refusal lever here is company existence only: if no filing matches the
-asked company, there is nothing to retrieve from and the answer is N/A --
-decided before any retrieval or generation. Fiscal year is deliberately NOT
-gated here -- a 10-K reports multi-year comparatives (a FY2022 filing's
-balance sheet routinely includes FY2021 figures too), so a strict year match
-at this stage produced false refusals on legitimately answerable questions.
-Whether the retrieved text actually covers the asked year is left to
-generation's own reasoning, which can see the real page content.
+Only company existence is gated here. Fiscal year is deliberately not: a
+filing reports multi-year comparatives, so a strict year match at this stage
+refuses legitimately answerable questions. Generation verifies the period
+against the actual page content.
 """
 
 import re

@@ -23,7 +23,7 @@ class QueryDeps:
     entity_index: list
     llm: object
     settings: object
-    reranker: object = None  # cross-encoder; None skips reranking (e.g. in tests)
+    reranker: object = None  # .predict(pairs) scorer; None skips reranking (tests)
 
 
 def build_deps(settings: Settings | None = None) -> QueryDeps:
@@ -36,9 +36,7 @@ def build_deps(settings: Settings | None = None) -> QueryDeps:
     meta_path = Path(settings.doc_metadata_path)
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     llm = get_llm(settings)
-    # The reranker scores with its OWN model (settings.reranker_llm_model,
-    # the 70b) — its score gates refusal, and the 8b primary degenerates to
-    # all-zero scores on batches with no obviously-relevant snippet.
+    # The reranker gets its own (stronger) model: its score gates refusal.
     reranker_llm = get_llm(settings, settings.reranker_llm_model)
     return QueryDeps(store=store, docstore_docs=docstore_docs,
                      entity_index=build_index(meta), llm=llm,
@@ -55,13 +53,10 @@ def _doc_snippet(d, with_score: bool = False) -> dict:
 
 def _retrieve_one(question, mode, sources, deps, trace: TraceRecorder | None = None,
                   source_label: str | None = None):
-    """Retrieve + (optionally) rerank against exactly one retrieval call.
+    """Retrieve and (optionally) rerank for one retrieval call.
 
-    `source_label` only affects trace annotation: it's None for the ordinary
-    single-source dispatch below (so that path's trace shape is byte-for-byte
-    unchanged), and set to the one source each decomposed call in `_retrieve`
-    is scoped to, so the trace/demo dashboard can tell per-company retrieval
-    steps apart.
+    `source_label` annotates the trace on decomposed multi-source calls so
+    per-company steps are distinguishable; None on the single-source path.
     """
     s = deps.settings
     if mode == "basic":
@@ -85,21 +80,10 @@ def _retrieve_one(question, mode, sources, deps, trace: TraceRecorder | None = N
 def _retrieve(question, mode, sources, deps, trace: TraceRecorder | None = None):
     """Retrieve candidates for the resolved source(s).
 
-    A single source (the overwhelmingly common case) is one retrieval call,
-    unchanged from before. Multiple sources (a "compare A vs B" question)
-    each get their OWN top_k/top_n budget instead of one shared budget over
-    the combined candidate pool -- otherwise a company whose chunks score
-    lower across the board gets crowded out of the results entirely by the
-    other company's stronger matches.
-
-    Per-source results are merged into one best-first list (sorted by
-    rerank_score): with a reranker this makes the list globally best-first
-    (not just best-first within each source's block), which is what
-    generator._fit_context's token-budget trimming assumes. Without a
-    reranker there's no score to sort by (every doc's score is equally
-    absent), so the sort is a no-op and the list stays in source-resolution
-    order -- the same "no ordering to pretend to have" behavior the
-    single-source path already has today.
+    Multi-source questions get a per-source top_k/top_n budget — a shared
+    budget lets one company's stronger matches crowd the other out entirely —
+    then merge globally best-first by rerank_score (a no-op without a
+    reranker, where no scores exist).
     """
     if len(sources) <= 1:
         return _retrieve_one(question, mode, sources, deps, trace=trace)
@@ -119,13 +103,9 @@ def _companies_by_source(entity_index: list) -> dict[str, str]:
 
 
 def _corpus_inventory_answer(deps: QueryDeps, trace: TraceRecorder | None = None) -> RAGAnswer:
-    """Deterministic catalog answer for questions about the corpus itself.
-
-    'Which companies do we have?' has no entity to resolve, so it can't go
-    through retrieval — and it doesn't need to: the answer IS the metadata
-    catalog, restricted to sources actually present in the index (metadata is
-    a cache and may know parked filings). No LLM, nothing to hallucinate.
-    """
+    """Deterministic catalog answer for questions about the corpus itself,
+    restricted to sources actually present in the index (the metadata file is
+    a cache and may know filings that aren't ingested). No LLM involved."""
     indexed = {d.metadata.get("source") for d in deps.docstore_docs}
     companies = _companies_by_source(deps.entity_index)
     years = {rec["source"]: rec.get("fiscal_year") for rec in deps.entity_index}
@@ -143,17 +123,13 @@ def _corpus_inventory_answer(deps: QueryDeps, trace: TraceRecorder | None = None
 
 
 def _expand_to_pages(docs: list, docstore_docs: list) -> list:
-    """Expand kept chunks to their full page for generation — retrieve small,
-    generate big.
+    """Expand kept chunks to their full pages for generation.
 
-    A reranked chunk is term-dense enough to *find*, but the page's labeling —
-    column headers, units notes ("US$ million"), section titles — lives in
-    sibling chunks, and generation's strict matching then refuses correctly-
-    but-needlessly ("88.1 is a possible match but the year can't be
-    confirmed"). One Document per unique (source, page), holding every
+    Retrieve small, generate big: the chunk is the retrieval unit, but the
+    page carries the labeling (column headers, units notes) that strict-match
+    generation needs. One Document per unique (source, page) with every
     docstore chunk of that page; page order inherits the kept docs'
     best-first order, and each page carries its best member's rerank_score.
-    Citations are unaffected: they were already derived from (source, page).
     """
     by_page: dict[tuple, list] = {}
     for d in docstore_docs:
@@ -179,23 +155,13 @@ def _expand_to_pages(docs: list, docstore_docs: list) -> list:
 
 
 def relevance_refusal_reason(docs: list, threshold: float, sources: list[str] | None = None) -> str | None:
-    """None if docs clear the bar; otherwise why they don't.
+    """None if docs clear the relevance bar; otherwise the refusal reason.
 
-    top_n retrieval almost always returns *something*, even when nothing is
-    actually relevant, so an empty list is rare. The cross-encoder's
-    rerank_score (stamped on docs by rag.retrieval.reranker.rerank) is the
-    real signal: it's calibrated per-query, unlike raw retriever fusion
-    scores. Without a reranker (e.g. in tests) there's no such score to judge
-    by, so we only fall back to the plain "nothing came back" check.
-
-    A multi-source question (e.g. "compare A vs B") needs every resolved
-    source individually grounded -- one company's strong top score can
-    otherwise hide another company's weak or entirely missing retrieval,
-    producing a one-sided "comparison" instead of a refusal. `sources` is
-    the full set of resolved source filenames for the question (not derived
-    from `docs`, since a source that returned zero docs wouldn't show up in
-    `docs` at all); with 0 or 1 sources this is identical to the single-score
-    check below, which is the vast majority of calls.
+    The rerank_score is the signal; without a reranker only the empty-result
+    check applies. Multi-source questions require every resolved source
+    individually grounded — one company's strong score must not hide
+    another's missing retrieval. `sources` comes from resolution, not from
+    `docs`: a source that returned nothing wouldn't appear in `docs` at all.
     """
     if not docs:
         return "no relevant excerpts retrieved"
@@ -242,9 +208,8 @@ def answer_linear(question: str, mode: str, deps: QueryDeps,
         if trace is not None:
             trace.record("refuse", reason=reason)
         return refusal(reason)
-    # Metadata is a cache and may know filings the index doesn't (sliced
-    # corpus, failed ingest). A resolved-but-unindexed source is a refusal
-    # with a precise reason — not an unhandled crash in BM25 construction.
+    # A resolved source may be absent from the index (metadata is a cache);
+    # refuse with a reason rather than crash building BM25 over zero docs.
     indexed = {d.metadata.get("source") for d in deps.docstore_docs}
     missing = [s for s in res.sources if s not in indexed]
     if missing:
@@ -259,12 +224,11 @@ def answer_linear(question: str, mode: str, deps: QueryDeps,
         if trace is not None:
             trace.record("refuse", reason=reason)
         return refusal(reason)
-    # The refusal gate judged the precise chunks; generation gets their full
-    # pages so labels/units/headers are visible (retrieve small, generate big).
+    # The refusal gate judged the precise chunks; generation gets full pages.
     docs = _expand_to_pages(docs, deps.docstore_docs)
-    # Query-time company annotation (from the entity index, NEVER persisted
-    # onto chunks): sources are opaque hash filenames, and generation must be
-    # able to attribute excerpts to companies — essential on compares.
+    # Company annotation happens at query time only — entity attributes are
+    # never persisted onto chunks. Sources are opaque hash filenames, and
+    # generation must attribute excerpts to companies on compare questions.
     companies = _companies_by_source(deps.entity_index)
     for d in docs:
         name = companies.get(d.metadata.get("source"))

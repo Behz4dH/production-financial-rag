@@ -37,12 +37,8 @@ from rag.trace import TraceRecorder
 
 
 def _scoped_deps(deps, top_k: int | None, top_n: int | None):
-    """deps with top_k/top_n overridden for one request only.
-
-    Never mutates the shared deps.settings on app.state — that instance is
-    reused across every concurrent request, so overriding it in place would
-    leak one caller's test override into everyone else's requests.
-    """
+    """deps with top_k/top_n overridden for one request only. Never mutates
+    the shared deps.settings — it serves every concurrent request."""
     overrides = {k: v for k, v in {"top_k": top_k, "top_n": top_n}.items() if v is not None}
     if not overrides:
         return deps
@@ -50,12 +46,8 @@ def _scoped_deps(deps, top_k: int | None, top_n: int | None):
 
 
 def _error_response(exc: Exception, request_id: str, settings) -> JSONResponse:
-    """Map failures to meaningful responses instead of a generic 500.
-
-    Provider rate limits become a 429 the client can act on. Everything else
-    is a 500 carrying the request_id (so a report can be matched to the log
-    line); raw exception detail is a dev-only convenience, never shown in
-    production."""
+    """Provider rate limits map to 429; everything else is a 500 with the
+    request_id that matches its log line. Exception detail is dev-only."""
     if getattr(exc, "status_code", None) == 429:
         return JSONResponse(status_code=429,
                             content=ErrorResponse(error="provider rate limited - retry shortly",
@@ -77,10 +69,8 @@ def _screen(message: str) -> tuple[str, JSONResponse | None]:
 
 
 def _build_response(rag_answer, body: ChatRequest, mode: str, settings, elapsed_ms: float) -> ChatResponse:
-    """Assemble the API response shape. Shared by /chat and /chat/trace so the
-    two can't drift. PII masking is input-only (see core.security): answers
-    derive from public filings, and masking them corrupted plain 10-digit
-    figures (share counts) into '[PHONE REDACTED]'."""
+    """Assemble the API response shape; shared by /chat and /chat/trace so
+    the two can't drift. PII masking is input-only (see core.security)."""
     return to_chat_response(rag_answer, thread_id=body.thread_id, model_used=settings.primary_model,
                             mode=mode, cached=False, processing_time_ms=elapsed_ms)
 
@@ -138,17 +128,14 @@ def create_app(query_deps=None) -> FastAPI:
                 "request_id": request_id, "mode": mode,
                 "latency_ms": round(elapsed_ms, 2), "status": status, **extra}})
 
-        # The message is already length-capped by ChatRequest; the token budget
-        # that matters (the assembled prompt) is enforced in rag.generation.generate.
         cleaned, error = _screen(body.message)
         if error is not None:
             log("blocked", (time.perf_counter() - started) * 1000)
             return error
 
-        # top_k/top_n in the cache key too — otherwise an overridden request could
-        # be served (or serve) a cached answer computed under different settings.
-        # This is the ONE place cache-key semantics live (ResponseCache does no
-        # normalization of its own), so the message is normalized here.
+        # Overrides belong in the key: a request must not serve (or be served)
+        # an answer computed under different settings. Key semantics live only
+        # here — ResponseCache does no normalization of its own.
         cache_key = f"{mode}:{body.top_k}:{body.top_n}:{cleaned.strip().lower()}"
         cached_answer = state.cache.get(cache_key)
         if cached_answer is not None:
@@ -161,9 +148,8 @@ def create_app(query_deps=None) -> FastAPI:
         query_deps = _scoped_deps(state.query_deps, body.top_k, body.top_n)
         fallback_deps = _scoped_deps(state.query_deps_fallback, body.top_k, body.top_n)
         try:
-            # Retry the primary model with exponential backoff — but only for
-            # transient errors (is_retryable); a deterministic 4xx goes straight
-            # to the fallback model, whose limits differ. If both fail: 500.
+            # Retry transient failures with backoff; deterministic 4xx skip
+            # straight to the fallback model, whose limits differ.
             rag_answer = call_with_fallback(
                 lambda: with_retry(lambda: answer(cleaned, mode, query_deps),
                                    max_retries=settings.request_max_retries,

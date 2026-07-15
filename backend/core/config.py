@@ -17,20 +17,15 @@ class Settings(BaseSettings):
     fallback_model: str = "llama-3.3-70b-versatile"
     embedding_provider: str = "huggingface"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    # Final-stage reranker: "llm" (one Groq call, recognizes table rows and
-    # doubles as the refusal signal) or "cross_encoder" (local, offline).
+    # Final-stage reranker: "llm" (scores candidates, doubles as the refusal
+    # signal) or "cross_encoder" (local).
     reranker_provider: str = "llm"
     reranker_model: str = "BAAI/bge-reranker-base"  # cross_encoder path only
-    # llm path: the scoring model. Deliberately the stronger 70b, NOT the
-    # primary generation model — the rerank score doubles as the refusal
-    # signal, and the 8b model degenerates to all-zero score arrays when a
-    # batch has no obviously-relevant snippet (every question then refuses).
+    # Must be a stronger model than the generation primary: the rerank score
+    # gates refusal, and small models emit degenerate all-zero score batches.
     reranker_llm_model: str = "llama-3.3-70b-versatile"
-    rerank_snippet_chars: int = 500  # llm path: keep generous — table-row values run long
-    # llm path: candidates scored per LLM call. Kept small so one call stays
-    # under the free-tier 6000 tokens/minute ceiling — hybrid's fused pool
-    # (~2x top_k) would otherwise exceed it in a single request (HTTP 413).
-    rerank_batch_size: int = 20
+    rerank_snippet_chars: int = 500  # table-row values can sit hundreds of chars in
+    rerank_batch_size: int = 20      # per-call size stays under provider TPM caps
 
     # --- Vector store / data ---
     vector_store: str = "chroma"
@@ -55,18 +50,12 @@ class Settings(BaseSettings):
 
     # --- Security / reliability / limits ---
     enable_llm_guard: bool = False
-    llm_max_retries: int = 3       # LangChain/Groq SDK's own transport-level retries
-    request_max_retries: int = 3   # our with_retry() wrapper around a whole /chat call
-    retry_base_delay: float = 0.5  # seconds; first backoff step for with_retry()
-    # Token budget for the assembled generation prompt (question + retrieved
-    # excerpts) — NOT a limit on the raw request; ChatRequest.message is
-    # separately capped at 2000 characters (~500 tokens) for input hygiene.
-    # The whole request must stay under Groq's free-tier 6000 tokens/minute
-    # for the generation model: a single prompt above that cap is a hard 413
-    # that no retry or fallback can rescue (observed in the benchmark run as
-    # 11 dead questions). This budget covers question + excerpts only — the
-    # system instructions and tool schema add ~1000 tokens on top, hence the
-    # margin below 6000.
+    llm_max_retries: int = 3       # SDK transport-level retries
+    request_max_retries: int = 3   # with_retry() around a whole /chat call
+    retry_base_delay: float = 0.5  # seconds; first backoff step
+    # Budget for question + retrieved excerpts only; system prompt and tool
+    # schema add ~1000 tokens, and the whole request must clear the provider's
+    # per-minute token cap (a single oversized request is an unretryable 413).
     max_context_tokens: int = 4500
     rate_limit: str = "20/minute"
     cache_ttl_seconds: int = 300

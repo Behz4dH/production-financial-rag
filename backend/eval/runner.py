@@ -7,13 +7,10 @@ from eval.golden import GoldenItem
 from eval.matching import is_correct
 from rag.query import answer
 
-# A full benchmark run spends ~11k tokens/question across two models, which
-# sustained exceeds Groq's free-tier per-minute token caps — so 429s are the
-# expected steady state, not an anomaly. The runner self-paces: long-backoff
-# retries on 429 only (the per-minute window needs tens of seconds to reset);
-# every other error is recorded immediately, as before.
+# Sustained benchmark runs exceed provider per-minute token caps, so 429s are
+# steady state: retry those with long backoff; record every other error.
 _RATE_LIMIT_RETRIES = 5
-_RATE_LIMIT_BASE_DELAY = 20.0  # seconds
+_RATE_LIMIT_BASE_DELAY = 20.0  # seconds; per-minute windows need time to reset
 
 
 def _is_rate_limited(exc: Exception) -> bool:

@@ -1,17 +1,12 @@
 """Render markdown pipe-tables into atomic, caption'd row lines.
 
-Financial tables arrive from pymupdf4llm as markdown: a header band (possibly
-bold, possibly <br>-split across lines) over data rows whose first wordy cell
-is the line-item label. Each DATA row becomes one self-contained line:
+Each data row becomes one self-contained line —
 
     "Consolidated Income Statement — Profit for the Year: 2022: 88.1; Restated 2021: 196.6"
 
-One row -> one chunk: term-dense for BM25 and the embedder, caption and
-column headers for context (the units note and period labels were exactly
-what the geometric renderer lost, causing correct-but-needless generation
-refusals). Markup is stripped for the indexed text: BM25 tokenizes on
-whitespace, so `equity**|` never matches `equity`, and pipes/bold pollute
-embeddings.
+— term-dense for retrieval, with the caption and column headers carrying
+units and period context. Markup is stripped from indexed text: BM25
+tokenizes on whitespace, so ``equity**|`` never matches ``equity``.
 """
 
 import re

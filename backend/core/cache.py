@@ -1,9 +1,7 @@
 """In-memory response cache with per-entry TTL expiration.
 
-Keys are used exactly as given: the caller owns the whole cache-key contract
-(the /chat layer builds one string from mode + overrides + the normalized
-message), so key semantics live in one place instead of being split between
-the endpoint and this class.
+Keys are used exactly as given; the caller owns the key contract (the /chat
+handler builds one string from mode, overrides, and the normalized message).
 """
 
 import time
@@ -28,10 +26,7 @@ class ResponseCache:
         return None
 
     def set(self, key: str, response: str) -> None:
-        self._cache[key] = {
-            "response": response,
-            "timestamp": time.time(),
-        }
+        self._cache[key] = {"response": response, "timestamp": time.time()}
 
     @property
     def stats(self) -> dict:
