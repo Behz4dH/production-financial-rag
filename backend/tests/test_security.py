@@ -1,6 +1,6 @@
 """Input sanitization + PII masking (pure, offline)."""
 
-from core.security import PIIDetector, InputSanitizer, mask_output, screen_input
+from core.security import PIIDetector, InputSanitizer, screen_input
 
 
 def test_injection_is_flagged():
@@ -25,5 +25,9 @@ def test_screen_input_blocks_injection_and_cleans_pii():
     assert "john@x.com" not in cleaned2
 
 
-def test_mask_output_redacts_pii():
-    assert "ssn" not in mask_output("his ssn is 123-45-6789").lower() or "REDACTED" in mask_output("123-45-6789")
+def test_masking_is_input_only():
+    """No output-masking API exists anymore: answers come from public filings,
+    and masking them redacted legitimate 10-digit figures as phone numbers."""
+    import core.security as security
+
+    assert not hasattr(security, "mask_output")

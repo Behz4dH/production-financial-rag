@@ -1,9 +1,16 @@
-"""In-memory request metrics for the /metrics endpoint (course: monitoring.py)."""
+"""In-memory request metrics for the /metrics endpoint (course: monitoring.py).
+
+Counters (requests, errors, tokens) are cumulative; latency stats (avg, p99)
+cover a bounded rolling window so a long-lived process doesn't grow one float
+per request forever.
+"""
+
+from collections import deque
 
 
 class MetricsCollector:
-    def __init__(self):
-        self._latencies: list[float] = []
+    def __init__(self, window_size: int = 1000):
+        self._latencies: deque[float] = deque(maxlen=window_size)
         self._requests = 0
         self._errors = 0
         self._cache_hits = 0
@@ -30,7 +37,8 @@ class MetricsCollector:
 
     def get_summary(self) -> dict:
         n = self._requests
-        avg = sum(self._latencies) / n if n else 0.0
+        window = len(self._latencies)
+        avg = sum(self._latencies) / window if window else 0.0
         error_rate = self._errors / n if n else 0.0
         cache_rate = self._cache_hits / n if n else 0.0
         return {

@@ -30,3 +30,17 @@ def test_p99_latency_is_high_percentile():
         m.record_request(float(i), 0, 0)
     # p99 of 0..99 is ~98-99
     assert m.get_summary()["p99_latency_ms"] >= 98.0
+
+
+def test_latency_window_is_bounded():
+    """Latencies are a rolling window, not an unbounded list — a long-lived
+    process must not leak memory one float per request."""
+    m = MetricsCollector(window_size=10)
+    for _ in range(15):
+        m.record_request(100.0, 0, 0)
+    for _ in range(10):
+        m.record_request(200.0, 0, 0)
+    s = m.get_summary()
+    assert s["total_requests"] == 25          # counters stay cumulative
+    assert s["avg_latency_ms"] == 200.0       # latency stats cover the window only
+    assert len(m._latencies) == 10

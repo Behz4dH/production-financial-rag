@@ -43,6 +43,15 @@ def test_defaults_are_applied():
     assert s.top_n == 5
     assert s.enable_llm_guard is False
     assert s.rate_limit == "20/minute"
+    assert s.retry_base_delay == 0.5
+    # Reranking is where an absolute score gates refusal — the 8b model
+    # degenerates to all-zero scores on batches of weak candidates, so the
+    # scoring model defaults to the stronger 70b.
+    assert s.reranker_llm_model == "llama-3.3-70b-versatile"
+    # Question+context budget; system prompt + tool schema add ~1000 tokens,
+    # and the whole request must stay under Groq free-tier 6000 TPM for the
+    # generation model — an 8000-token prompt can NEVER succeed there.
+    assert s.max_context_tokens == 4500
 
 
 def test_is_production_property():

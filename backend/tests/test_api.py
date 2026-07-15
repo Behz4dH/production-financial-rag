@@ -17,11 +17,14 @@ def client(monkeypatch):
     # so tests need no real key and don't trip the limiter across requests.
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("RATE_LIMIT", "10000/minute")
+    monkeypatch.setenv("RETRY_BASE_DELAY", "0")  # no real sleeps in tests
     get_settings.cache_clear()
 
     def fake_answer(question, mode, deps, trace=None):
         if "boom" in question:
             raise RuntimeError("provider down")
+        if "shares" in question:
+            return RAGAnswer(answer="Shares outstanding were 1234567890.")
         refused = "unknown" in question
         return RAGAnswer(answer="N/A" if refused else "88.1", refused=refused)
 
@@ -75,7 +78,7 @@ def test_chat_blocks_injection(client):
 
 def test_chat_rejects_invalid_mode(client):
     r = client.post("/chat", json={"message": "hi", "mode": "turbo"})
-    assert r.status_code == 422  # Literal["basic","hybrid","agentic"] rejects it
+    assert r.status_code == 422  # Literal["basic","hybrid"] rejects it
 
 
 def test_chat_second_identical_call_is_cached(client):
@@ -83,6 +86,22 @@ def test_chat_second_identical_call_is_cached(client):
     client.post("/chat", json=payload)
     r2 = client.post("/chat", json=payload)
     assert r2.json()["cached"] is True
+
+
+def test_chat_cache_hit_is_case_and_whitespace_insensitive(client):
+    # Key normalization lives in ONE place (the /chat cache-key build), so a
+    # trivially restyled question must still hit the cache.
+    client.post("/chat", json={"message": "net income of Petra 2022?"})
+    r2 = client.post("/chat", json={"message": "  NET INCOME of Petra 2022?  "})
+    assert r2.json()["cached"] is True
+
+
+def test_chat_answer_keeps_plain_financial_figures(client):
+    # PII masking is input-only: answers come from public filings, and output
+    # masking used to redact 10-digit figures (share counts) as "phone numbers".
+    r = client.post("/chat", json={"message": "how many shares outstanding?"})
+    assert "1234567890" in r.json()["response"]
+    assert "REDACTED" not in r.json()["response"]
 
 
 def test_chat_provider_error_returns_500(client):
@@ -141,7 +160,7 @@ def test_chat_trace_returns_steps(client):
     assert "steps" in body
     # fake_answer (the client fixture's monkeypatched `answer`) doesn't record
     # anything itself, so this only proves the endpoint wires the field through -
-    # real step content is covered by test_query.py / test_agentic.py.
+    # real step content is covered by test_query.py.
     assert isinstance(body["steps"], list)
 
 
@@ -170,3 +189,50 @@ def test_eval_results_returns_report(client, monkeypatch, tmp_path):
     r = client.get("/eval-results")
     assert r.status_code == 200
     assert r.json()["modes"]["hybrid"]["overall"]["accuracy"] == 1.0
+
+
+def test_error_responses_carry_request_id(client):
+    r = client.post("/chat", json={"message": "boom"})
+    assert r.status_code == 500
+    body = r.json()
+    assert body.get("request_id")  # correlates the response with the log line
+
+
+def test_provider_rate_limit_maps_to_429(client, monkeypatch):
+    class _RateLimited(Exception):
+        status_code = 429
+
+    def rate_limited_answer(question, mode, deps, trace=None):
+        raise _RateLimited("provider says slow down")
+
+    monkeypatch.setattr(main, "answer", rate_limited_answer)
+    r = client.post("/chat", json={"message": "any question"})
+    assert r.status_code == 429
+    assert "rate" in r.json()["error"].lower()
+
+
+def test_production_hides_exception_detail(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("RATE_LIMIT", "10000/minute")
+    monkeypatch.setenv("RETRY_BASE_DELAY", "0")
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+
+    def fake_answer(question, mode, deps, trace=None):
+        raise RuntimeError("secret internal path C:/keys/prod.pem")
+
+    monkeypatch.setattr(main, "answer", fake_answer)
+
+    class _Store:
+        @staticmethod
+        def count():
+            return 3
+
+    deps = QueryDeps(store=_Store(), docstore_docs=[], entity_index=[],
+                     llm=None, settings=get_settings())
+    with TestClient(main.create_app(query_deps=deps)) as tc:
+        r = tc.post("/chat", json={"message": "any question"})
+    assert r.status_code == 500
+    assert "secret internal path" not in r.text  # no leak in production
+    assert r.json().get("request_id")
+    get_settings.cache_clear()

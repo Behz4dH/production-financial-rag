@@ -27,8 +27,8 @@ from core.cache import ResponseCache
 from core.config import get_settings
 from core.logging import get_logger
 from core.monitoring import MetricsCollector
-from core.reliability import call_with_fallback, with_retry
-from core.security import mask_output, screen_input
+from core.reliability import call_with_fallback, is_retryable, with_retry
+from core.security import screen_input
 from core.token_budget import count_tokens
 from core.tracing import configure_tracing
 from rag.providers.factory import get_llm
@@ -47,6 +47,42 @@ def _scoped_deps(deps, top_k: int | None, top_n: int | None):
     if not overrides:
         return deps
     return replace(deps, settings=deps.settings.model_copy(update=overrides))
+
+
+def _error_response(exc: Exception, request_id: str, settings) -> JSONResponse:
+    """Map failures to meaningful responses instead of a generic 500.
+
+    Provider rate limits become a 429 the client can act on. Everything else
+    is a 500 carrying the request_id (so a report can be matched to the log
+    line); raw exception detail is a dev-only convenience, never shown in
+    production."""
+    if getattr(exc, "status_code", None) == 429:
+        return JSONResponse(status_code=429,
+                            content=ErrorResponse(error="provider rate limited - retry shortly",
+                                                  request_id=request_id).model_dump())
+    detail = None if settings.is_production else str(exc)
+    return JSONResponse(status_code=500,
+                        content=ErrorResponse(error="generation failed", detail=detail,
+                                              request_id=request_id).model_dump())
+
+
+def _screen(message: str) -> tuple[str, JSONResponse | None]:
+    """(cleaned_message, None) normally, or ("", error_response) if blocked.
+    Shared by /chat and /chat/trace so the two can't drift on this check."""
+    blocked, cleaned = screen_input(message)
+    if blocked:
+        return "", JSONResponse(status_code=400,
+                                content=ErrorResponse(error="input rejected by safety filter").model_dump())
+    return cleaned, None
+
+
+def _build_response(rag_answer, body: ChatRequest, mode: str, settings, elapsed_ms: float) -> ChatResponse:
+    """Assemble the API response shape. Shared by /chat and /chat/trace so the
+    two can't drift. PII masking is input-only (see core.security): answers
+    derive from public filings, and masking them corrupted plain 10-digit
+    figures (share counts) into '[PHONE REDACTED]'."""
+    return to_chat_response(rag_answer, thread_id=body.thread_id, model_used=settings.primary_model,
+                            mode=mode, cached=False, processing_time_ms=elapsed_ms)
 
 
 def create_app(query_deps=None) -> FastAPI:
@@ -104,15 +140,16 @@ def create_app(query_deps=None) -> FastAPI:
 
         # The message is already length-capped by ChatRequest; the token budget
         # that matters (the assembled prompt) is enforced in rag.generation.generate.
-        blocked, cleaned = screen_input(body.message)
-        if blocked:
+        cleaned, error = _screen(body.message)
+        if error is not None:
             log("blocked", (time.perf_counter() - started) * 1000)
-            return JSONResponse(status_code=400,
-                                content=ErrorResponse(error="input rejected by safety filter").model_dump())
+            return error
 
         # top_k/top_n in the cache key too — otherwise an overridden request could
         # be served (or serve) a cached answer computed under different settings.
-        cache_key = f"{mode}:{body.top_k}:{body.top_n}:{cleaned}"
+        # This is the ONE place cache-key semantics live (ResponseCache does no
+        # normalization of its own), so the message is normalized here.
+        cache_key = f"{mode}:{body.top_k}:{body.top_n}:{cleaned.strip().lower()}"
         cached_answer = state.cache.get(cache_key)
         if cached_answer is not None:
             elapsed = (time.perf_counter() - started) * 1000
@@ -124,26 +161,24 @@ def create_app(query_deps=None) -> FastAPI:
         query_deps = _scoped_deps(state.query_deps, body.top_k, body.top_n)
         fallback_deps = _scoped_deps(state.query_deps_fallback, body.top_k, body.top_n)
         try:
-            # Retry the primary model with backoff; if it still fails, fall back
-            # to the configured fallback model.
+            # Retry the primary model with exponential backoff — but only for
+            # transient errors (is_retryable); a deterministic 4xx goes straight
+            # to the fallback model, whose limits differ. If both fail: 500.
             rag_answer = call_with_fallback(
                 lambda: with_retry(lambda: answer(cleaned, mode, query_deps),
-                                   max_retries=settings.request_max_retries, base_delay=0.0),
+                                   max_retries=settings.request_max_retries,
+                                   base_delay=settings.retry_base_delay,
+                                   retry_if=is_retryable),
                 lambda: answer(cleaned, mode, fallback_deps),
             )
         except Exception as exc:  # noqa: BLE001 — primary (with retries) and fallback both failed
             elapsed = (time.perf_counter() - started) * 1000
             state.metrics.record_request(elapsed, input_tokens, 0, error=True)
             log("error", elapsed, error=str(exc))
-            return JSONResponse(status_code=500,
-                                content=ErrorResponse(error="generation failed",
-                                                      detail=str(exc)).model_dump())
+            return _error_response(exc, request_id, settings)
 
-        rag_answer.answer = mask_output(rag_answer.answer)
         elapsed = (time.perf_counter() - started) * 1000
-        resp = to_chat_response(rag_answer, thread_id=body.thread_id,
-                                model_used=settings.primary_model, mode=mode,
-                                cached=False, processing_time_ms=elapsed)
+        resp = _build_response(rag_answer, body, mode, settings, elapsed)
         state.cache.set(cache_key, resp.model_dump_json())
         state.metrics.record_request(elapsed, input_tokens, count_tokens(resp.response))
         log("ok", elapsed, refused=resp.refused, reason=resp.refusal_reason)
@@ -154,12 +189,12 @@ def create_app(query_deps=None) -> FastAPI:
     def chat_trace(request: Request, body: ChatRequest):
         state = request.app.state
         started = time.perf_counter()
+        request_id = uuid.uuid4().hex[:8]
         mode = body.mode or settings.retrieval_mode
 
-        blocked, cleaned = screen_input(body.message)
-        if blocked:
-            return JSONResponse(status_code=400,
-                                content=ErrorResponse(error="input rejected by safety filter").model_dump())
+        cleaned, error = _screen(body.message)
+        if error is not None:
+            return error
 
         query_deps = _scoped_deps(state.query_deps, body.top_k, body.top_n)
         recorder = TraceRecorder()
@@ -168,15 +203,10 @@ def create_app(query_deps=None) -> FastAPI:
             # what you see here is exactly what ran, not a hidden second try.
             rag_answer = answer(cleaned, mode, query_deps, trace=recorder)
         except Exception as exc:  # noqa: BLE001
-            return JSONResponse(status_code=500,
-                                content=ErrorResponse(error="generation failed",
-                                                      detail=str(exc)).model_dump())
+            return _error_response(exc, request_id, settings)
 
-        rag_answer.answer = mask_output(rag_answer.answer)
         elapsed = (time.perf_counter() - started) * 1000
-        base = to_chat_response(rag_answer, thread_id=body.thread_id,
-                                model_used=settings.primary_model, mode=mode,
-                                cached=False, processing_time_ms=elapsed)
+        base = _build_response(rag_answer, body, mode, settings, elapsed)
         return TraceResponse(**base.model_dump(),
                              steps=[TraceStepModel(stage=s.stage, elapsed_ms=s.elapsed_ms, data=s.data)
                                     for s in recorder.steps])

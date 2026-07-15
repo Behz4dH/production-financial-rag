@@ -3,6 +3,10 @@
 Trimmed from the course security_patterns.py to the pieces the API needs on the
 hot path (no per-request LLM guard). Enabling an LLM-based guard is a documented
 later enhancement (settings.enable_llm_guard).
+
+PII masking is INPUT-ONLY, deliberately: answers are derived from public
+filings (no PII to leak), and masking generated answers corrupted legitimate
+figures — a plain 10-digit share count reads as a "phone number" to the regex.
 """
 
 import re
@@ -57,7 +61,3 @@ def screen_input(text: str) -> tuple[bool, str]:
     if suspicious:
         return True, text
     return False, _pii.mask(_sanitizer.sanitize(text))
-
-
-def mask_output(text: str) -> str:
-    return _pii.mask(text)

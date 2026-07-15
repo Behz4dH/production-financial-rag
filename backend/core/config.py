@@ -17,7 +17,20 @@ class Settings(BaseSettings):
     fallback_model: str = "llama-3.3-70b-versatile"
     embedding_provider: str = "huggingface"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    reranker_model: str = "BAAI/bge-reranker-base"
+    # Final-stage reranker: "llm" (one Groq call, recognizes table rows and
+    # doubles as the refusal signal) or "cross_encoder" (local, offline).
+    reranker_provider: str = "llm"
+    reranker_model: str = "BAAI/bge-reranker-base"  # cross_encoder path only
+    # llm path: the scoring model. Deliberately the stronger 70b, NOT the
+    # primary generation model — the rerank score doubles as the refusal
+    # signal, and the 8b model degenerates to all-zero score arrays when a
+    # batch has no obviously-relevant snippet (every question then refuses).
+    reranker_llm_model: str = "llama-3.3-70b-versatile"
+    rerank_snippet_chars: int = 500  # llm path: keep generous — table-row values run long
+    # llm path: candidates scored per LLM call. Kept small so one call stays
+    # under the free-tier 6000 tokens/minute ceiling — hybrid's fused pool
+    # (~2x top_k) would otherwise exceed it in a single request (HTTP 413).
+    rerank_batch_size: int = 20
 
     # --- Vector store / data ---
     vector_store: str = "chroma"
@@ -44,11 +57,17 @@ class Settings(BaseSettings):
     enable_llm_guard: bool = False
     llm_max_retries: int = 3       # LangChain/Groq SDK's own transport-level retries
     request_max_retries: int = 3   # our with_retry() wrapper around a whole /chat call
-    agentic_max_retries: int = 3   # agentic loop: retries of retrieval after a weak-relevance grade
+    retry_base_delay: float = 0.5  # seconds; first backoff step for with_retry()
     # Token budget for the assembled generation prompt (question + retrieved
     # excerpts) — NOT a limit on the raw request; ChatRequest.message is
     # separately capped at 2000 characters (~500 tokens) for input hygiene.
-    max_context_tokens: int = 8000
+    # The whole request must stay under Groq's free-tier 6000 tokens/minute
+    # for the generation model: a single prompt above that cap is a hard 413
+    # that no retry or fallback can rescue (observed in the benchmark run as
+    # 11 dead questions). This budget covers question + excerpts only — the
+    # system instructions and tool schema add ~1000 tokens on top, hence the
+    # margin below 6000.
+    max_context_tokens: int = 4500
     rate_limit: str = "20/minute"
     cache_ttl_seconds: int = 300
 

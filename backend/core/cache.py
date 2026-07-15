@@ -1,6 +1,11 @@
-"""In-memory response cache with per-entry TTL expiration."""
+"""In-memory response cache with per-entry TTL expiration.
 
-import hashlib
+Keys are used exactly as given: the caller owns the whole cache-key contract
+(the /chat layer builds one string from mode + overrides + the normalized
+message), so key semantics live in one place instead of being split between
+the endpoint and this class.
+"""
+
 import time
 from typing import Optional
 
@@ -12,12 +17,7 @@ class ResponseCache:
         self._hits = 0
         self._misses = 0
 
-    def _make_key(self, query: str) -> str:
-        normalized = query.lower().strip()
-        return hashlib.sha256(normalized.encode()).hexdigest()
-
-    def get(self, query: str) -> Optional[str]:
-        key = self._make_key(query)
+    def get(self, key: str) -> Optional[str]:
         entry = self._cache.get(key)
         if entry is not None:
             if (time.time() - entry["timestamp"]) < self.ttl:
@@ -27,10 +27,9 @@ class ResponseCache:
         self._misses += 1
         return None
 
-    def set(self, query: str, response: str) -> None:
-        self._cache[self._make_key(query)] = {
+    def set(self, key: str, response: str) -> None:
+        self._cache[key] = {
             "response": response,
-            "query": query,
             "timestamp": time.time(),
         }
 

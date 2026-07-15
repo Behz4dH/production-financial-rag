@@ -15,10 +15,13 @@ def test_set_then_get_hit():
     assert cache.get("hello") == "world"
 
 
-def test_key_normalization_is_case_and_whitespace_insensitive():
+def test_keys_are_used_exactly_as_given():
+    """The cache does no hidden normalization — the caller (the /chat layer)
+    owns the whole cache-key contract, so key semantics live in one place."""
     cache = ResponseCache()
     cache.set("Hello World", "answer")
-    assert cache.get("  hello world  ") == "answer"
+    assert cache.get("hello world") is None
+    assert cache.get("Hello World") == "answer"
 
 
 def test_entry_expires_after_ttl():
