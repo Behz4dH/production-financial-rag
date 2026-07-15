@@ -2,213 +2,156 @@
   "modes": {
     "basic": {
       "overall": {
-        "correct": 35,
-        "total": 40,
-        "accuracy": 0.875
+        "correct": 9,
+        "total": 10,
+        "accuracy": 0.9
       },
       "by_category": {
-        "hallucination": {
-          "correct": 19,
-          "total": 19,
+        "retrieval": {
+          "correct": 4,
+          "total": 4,
           "accuracy": 1.0
-        },
-        "tricky": {
-          "correct": 5,
-          "total": 6,
-          "accuracy": 0.8333333333333334
         },
         "compare": {
           "correct": 0,
-          "total": 2,
+          "total": 1,
           "accuracy": 0.0
         },
-        "other": {
-          "correct": 11,
-          "total": 11,
+        "tricky": {
+          "correct": 2,
+          "total": 2,
           "accuracy": 1.0
         },
-        "retrieval": {
-          "correct": 0,
-          "total": 2,
-          "accuracy": 0.0
+        "hallucination": {
+          "correct": 3,
+          "total": 3,
+          "accuracy": 1.0
         }
       }
     },
     "hybrid": {
       "overall": {
-        "correct": 34,
-        "total": 40,
-        "accuracy": 0.85
+        "correct": 10,
+        "total": 10,
+        "accuracy": 1.0
       },
       "by_category": {
-        "hallucination": {
-          "correct": 19,
-          "total": 19,
+        "retrieval": {
+          "correct": 4,
+          "total": 4,
+          "accuracy": 1.0
+        },
+        "compare": {
+          "correct": 1,
+          "total": 1,
           "accuracy": 1.0
         },
         "tricky": {
-          "correct": 4,
-          "total": 6,
-          "accuracy": 0.6666666666666666
-        },
-        "compare": {
-          "correct": 0,
+          "correct": 2,
           "total": 2,
-          "accuracy": 0.0
-        },
-        "other": {
-          "correct": 11,
-          "total": 11,
           "accuracy": 1.0
         },
-        "retrieval": {
-          "correct": 0,
-          "total": 2,
-          "accuracy": 0.0
-        }
-      }
-    },
-    "agentic": {
-      "overall": {
-        "correct": 34,
-        "total": 40,
-        "accuracy": 0.85
-      },
-      "by_category": {
         "hallucination": {
-          "correct": 19,
-          "total": 19,
+          "correct": 3,
+          "total": 3,
           "accuracy": 1.0
-        },
-        "tricky": {
-          "correct": 4,
-          "total": 6,
-          "accuracy": 0.6666666666666666
-        },
-        "compare": {
-          "correct": 0,
-          "total": 2,
-          "accuracy": 0.0
-        },
-        "other": {
-          "correct": 11,
-          "total": 11,
-          "accuracy": 1.0
-        },
-        "retrieval": {
-          "correct": 0,
-          "total": 2,
-          "accuracy": 0.0
         }
       }
     }
   },
   "refusal_accuracy": {
     "basic": 1.0,
-    "hybrid": 1.0,
-    "agentic": 1.0
+    "hybrid": 1.0
   },
   "rows": {
     "basic": [
       {
-        "question": "What was the Net Profit Margin of \"Oesterreichische Kontrollbank\" in June 30, 2023?",
-        "category": "hallucination",
+        "question": "What was the intangible assets of \"TransUnion\" in the fiscal year 2021?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          3770600000,
+          5679500000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "$3,770.6",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "What was the total liabilities of \"CrossFirst Bank\" in the fiscal year 2023?",
-        "category": "hallucination",
+        "question": "What was the net sales of \"Holley Inc.\" in the fiscal year 2022?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          688415000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "688,415",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_Y\" in June 30, 2021?",
-        "category": "hallucination",
+        "question": "What was the total assets of \"First Mid Bancshares, Inc.\" in the fiscal year 2022?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          6744215000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "$6.7 billion",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "Which company had a higher free cash flow: \"TSX_ACQ\", \"QUIDELORTHO CORPORATION\" or \"PowerFleet, Inc.\", in the fiscal year 2022?",
-        "category": "tricky",
+        "question": "What was the revenue of \"Safe & Green Holdings Corp.\" in the fiscal year 2022?",
+        "category": "retrieval",
+        "answer_type": "number",
+        "expected": [
+          24393946
+        ],
+        "predicted": "$24,393,946",
+        "refused": false,
+        "correct": true,
+        "error": ""
+      },
+      {
+        "question": "Which company had a higher total revenue in fiscal year 2022: \"Holley Inc.\" or \"Safe & Green Holdings Corp.\"?",
+        "category": "compare",
         "answer_type": "name",
         "expected": [
-          "N/A",
-          "PowerFleet, Inc."
+          "Holley Inc."
         ],
         "predicted": "N/A",
         "refused": true,
+        "correct": false,
+        "error": ""
+      },
+      {
+        "question": "What was the Gross Profit Margin of \"Safe & Green Holdings Corp.\" in June 30, 2022?",
+        "category": "tricky",
+        "answer_type": "number",
+        "expected": [
+          "N/A"
+        ],
+        "predicted": "N/A",
+        "refused": true,
+        "correct": true,
+        "error": ""
+      },
+      {
+        "question": "What was the net asset value per share of \"Baker Steel Resources Trust\" in the fiscal year 2022?",
+        "category": "tricky",
+        "answer_type": "number",
+        "expected": [
+          79.4
+        ],
+        "predicted": "79.4 pence",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
         "question": "What was the earnings per share (EPS) of \"Holley Inc.\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the accounts receivable of \"Petra Diamonds\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Creative Media & Community Trust Corporation\" spend on sustainability initiatives compared to \"BAKER STEEL RESOURCES TRUST LIMITED\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"Creative Media & Community Trust Corporation\", \"Sleep Country Canada Holdings Inc.\" or \"Tradition\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Net Profit Margin of \"QUIDELORTHO CORPORATION\" in June 30, 2023?",
         "category": "hallucination",
         "answer_type": "number",
         "expected": [
@@ -232,203 +175,7 @@
         "error": ""
       },
       {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_ACQ\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher shareholders' equity: \"MITSUI O.S.K. LINES\", \"TSX_Y\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the operating cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Astral Resources NL\" spend on risk management compared to \"Caixa Geral de Depósitos, S.A.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher acquisition costs: \"PowerFleet, Inc.\", \"Oesterreichische Kontrollbank\" or \"Astral Resources NL\", in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Quick Ratio of \"IMUNON, INC.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the net income of \"Petra Diamonds\" in the fiscal year 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          88100000
-        ],
-        "predicted": "88.1",
-        "refused": false,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on customer acquisition compared to \"Laserbond\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"Sensata\", \"TransUnion\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "TransUnion",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the market capitalization of \"Holley Inc.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
         "question": "What was the total assets of \"TransUnion\" in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"BAKER STEEL RESOURCES TRUST LIMITED\" spend on customer acquisition compared to \"Sleep Country Canada Holdings Inc.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          -11150000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher research and development expenses: \"MITSUI O.S.K. LINES\", \"Holley Inc.\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "tricky",
-        "answer_type": "name",
-        "expected": [
-          "Holley Inc."
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Sleep Country Canada Holdings Inc.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          15.63
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the intangible assets of \"TransUnion\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          3770600000,
-          5679500000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"PowerFleet, Inc.\" spend on R&D compared to \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
         "category": "hallucination",
         "answer_type": "number",
         "expected": [
@@ -437,269 +184,97 @@
         "predicted": "N/A",
         "refused": true,
         "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher inventories: \"TSX_Y\", \"Mercia Asset Management PLC\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"Safe & Green Holdings Corp.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the total revenue of \"Mercia Asset Management PLC\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          23410000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"First Mid Bancshares, Inc.\" spend on risk management compared to \"QUIDELORTHO CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"DouYu International Holdings Limited\", \"CrossFirst Bank\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Return on Assets (ROA) of \"ENRG ELEMENTS LIMITED\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          -45.42,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"Oesterreichische Kontrollbank\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on risk management compared to \"Holley Inc.\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          0
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"BAKER STEEL RESOURCES TRUST LIMITED\", \"Safe & Green Holdings Corp.\" or \"PowerFleet, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "BAKER STEEL RESOURCES TRUST LIMITED",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Mercia Asset Management PLC\" in June 30, 2021?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          177.06,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Laserbond\" spend on R&D compared to \"PowerFleet, Inc.\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total assets: \"MITSUI O.S.K. LINES\", \"ENRG ELEMENTS LIMITED\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
         "error": ""
       }
     ],
     "hybrid": [
       {
-        "question": "What was the Net Profit Margin of \"Oesterreichische Kontrollbank\" in June 30, 2023?",
-        "category": "hallucination",
+        "question": "What was the intangible assets of \"TransUnion\" in the fiscal year 2021?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          3770600000,
+          5679500000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "$3,770.6",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "What was the total liabilities of \"CrossFirst Bank\" in the fiscal year 2023?",
-        "category": "hallucination",
+        "question": "What was the net sales of \"Holley Inc.\" in the fiscal year 2022?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          688415000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "$688,415",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_Y\" in June 30, 2021?",
-        "category": "hallucination",
+        "question": "What was the total assets of \"First Mid Bancshares, Inc.\" in the fiscal year 2022?",
+        "category": "retrieval",
         "answer_type": "number",
         "expected": [
-          "N/A"
+          6744215000
         ],
-        "predicted": "N/A",
-        "refused": true,
+        "predicted": "$6.7 billion",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
-        "question": "Which company had a higher free cash flow: \"TSX_ACQ\", \"QUIDELORTHO CORPORATION\" or \"PowerFleet, Inc.\", in the fiscal year 2022?",
-        "category": "tricky",
+        "question": "What was the revenue of \"Safe & Green Holdings Corp.\" in the fiscal year 2022?",
+        "category": "retrieval",
+        "answer_type": "number",
+        "expected": [
+          24393946
+        ],
+        "predicted": "$24,393,946",
+        "refused": false,
+        "correct": true,
+        "error": ""
+      },
+      {
+        "question": "Which company had a higher total revenue in fiscal year 2022: \"Holley Inc.\" or \"Safe & Green Holdings Corp.\"?",
+        "category": "compare",
         "answer_type": "name",
         "expected": [
-          "N/A",
-          "PowerFleet, Inc."
+          "Holley Inc."
+        ],
+        "predicted": "Holley Inc.",
+        "refused": false,
+        "correct": true,
+        "error": ""
+      },
+      {
+        "question": "What was the Gross Profit Margin of \"Safe & Green Holdings Corp.\" in June 30, 2022?",
+        "category": "tricky",
+        "answer_type": "number",
+        "expected": [
+          "N/A"
         ],
         "predicted": "N/A",
         "refused": true,
+        "correct": true,
+        "error": ""
+      },
+      {
+        "question": "What was the net asset value per share of \"Baker Steel Resources Trust\" in the fiscal year 2022?",
+        "category": "tricky",
+        "answer_type": "number",
+        "expected": [
+          79.4
+        ],
+        "predicted": "79.4 pence",
+        "refused": false,
         "correct": true,
         "error": ""
       },
       {
         "question": "What was the earnings per share (EPS) of \"Holley Inc.\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the accounts receivable of \"Petra Diamonds\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Creative Media & Community Trust Corporation\" spend on sustainability initiatives compared to \"BAKER STEEL RESOURCES TRUST LIMITED\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"Creative Media & Community Trust Corporation\", \"Sleep Country Canada Holdings Inc.\" or \"Tradition\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Net Profit Margin of \"QUIDELORTHO CORPORATION\" in June 30, 2023?",
         "category": "hallucination",
         "answer_type": "number",
         "expected": [
@@ -723,203 +298,7 @@
         "error": ""
       },
       {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_ACQ\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher shareholders' equity: \"MITSUI O.S.K. LINES\", \"TSX_Y\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the operating cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Astral Resources NL\" spend on risk management compared to \"Caixa Geral de Depósitos, S.A.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher acquisition costs: \"PowerFleet, Inc.\", \"Oesterreichische Kontrollbank\" or \"Astral Resources NL\", in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Quick Ratio of \"IMUNON, INC.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the net income of \"Petra Diamonds\" in the fiscal year 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          88100000
-        ],
-        "predicted": "88.1",
-        "refused": false,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on customer acquisition compared to \"Laserbond\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"Sensata\", \"TransUnion\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "TransUnion",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the market capitalization of \"Holley Inc.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
         "question": "What was the total assets of \"TransUnion\" in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"BAKER STEEL RESOURCES TRUST LIMITED\" spend on customer acquisition compared to \"Sleep Country Canada Holdings Inc.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          -11150000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher research and development expenses: \"MITSUI O.S.K. LINES\", \"Holley Inc.\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "tricky",
-        "answer_type": "name",
-        "expected": [
-          "Holley Inc."
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Sleep Country Canada Holdings Inc.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          15.63
-        ],
-        "predicted": "23.5%",
-        "refused": false,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the intangible assets of \"TransUnion\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          3770600000,
-          5679500000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"PowerFleet, Inc.\" spend on R&D compared to \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
         "category": "hallucination",
         "answer_type": "number",
         "expected": [
@@ -928,657 +307,6 @@
         "predicted": "N/A",
         "refused": true,
         "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher inventories: \"TSX_Y\", \"Mercia Asset Management PLC\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"Safe & Green Holdings Corp.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the total revenue of \"Mercia Asset Management PLC\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          23410000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"First Mid Bancshares, Inc.\" spend on risk management compared to \"QUIDELORTHO CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"DouYu International Holdings Limited\", \"CrossFirst Bank\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Return on Assets (ROA) of \"ENRG ELEMENTS LIMITED\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          -45.42,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"Oesterreichische Kontrollbank\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on risk management compared to \"Holley Inc.\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          0
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"BAKER STEEL RESOURCES TRUST LIMITED\", \"Safe & Green Holdings Corp.\" or \"PowerFleet, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "BAKER STEEL RESOURCES TRUST LIMITED",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Mercia Asset Management PLC\" in June 30, 2021?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          177.06,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Laserbond\" spend on R&D compared to \"PowerFleet, Inc.\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total assets: \"MITSUI O.S.K. LINES\", \"ENRG ELEMENTS LIMITED\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      }
-    ],
-    "agentic": [
-      {
-        "question": "What was the Net Profit Margin of \"Oesterreichische Kontrollbank\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the total liabilities of \"CrossFirst Bank\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_Y\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"TSX_ACQ\", \"QUIDELORTHO CORPORATION\" or \"PowerFleet, Inc.\", in the fiscal year 2022?",
-        "category": "tricky",
-        "answer_type": "name",
-        "expected": [
-          "N/A",
-          "PowerFleet, Inc."
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the earnings per share (EPS) of \"Holley Inc.\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the accounts receivable of \"Petra Diamonds\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Creative Media & Community Trust Corporation\" spend on sustainability initiatives compared to \"BAKER STEEL RESOURCES TRUST LIMITED\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"Creative Media & Community Trust Corporation\", \"Sleep Country Canada Holdings Inc.\" or \"Tradition\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Net Profit Margin of \"QUIDELORTHO CORPORATION\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the acquisition costs of \"Safe & Green Holdings Corp.\" in the fiscal year 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Astral Resources NL\" spend on marketing compared to \"TSX_ACQ\" in June 30, 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher shareholders' equity: \"MITSUI O.S.K. LINES\", \"TSX_Y\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the operating cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Astral Resources NL\" spend on risk management compared to \"Caixa Geral de Depósitos, S.A.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher acquisition costs: \"PowerFleet, Inc.\", \"Oesterreichische Kontrollbank\" or \"Astral Resources NL\", in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Quick Ratio of \"IMUNON, INC.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the net income of \"Petra Diamonds\" in the fiscal year 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          88100000
-        ],
-        "predicted": "88.1",
-        "refused": false,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on customer acquisition compared to \"Laserbond\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"Sensata\", \"TransUnion\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "TransUnion",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the market capitalization of \"Holley Inc.\" in June 30, 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the total assets of \"TransUnion\" in the fiscal year 2023?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"BAKER STEEL RESOURCES TRUST LIMITED\" spend on customer acquisition compared to \"Sleep Country Canada Holdings Inc.\" in June 30, 2021?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          -11150000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher research and development expenses: \"MITSUI O.S.K. LINES\", \"Holley Inc.\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "tricky",
-        "answer_type": "name",
-        "expected": [
-          "Holley Inc."
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Sleep Country Canada Holdings Inc.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          15.63
-        ],
-        "predicted": "23.5%",
-        "refused": false,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "What was the intangible assets of \"TransUnion\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          3770600000,
-          5679500000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"PowerFleet, Inc.\" spend on R&D compared to \"JOURNEY MEDICAL CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher inventories: \"TSX_Y\", \"Mercia Asset Management PLC\" or \"Tradition\", in the fiscal year 2022?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Gross Profit Margin of \"Safe & Green Holdings Corp.\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the total revenue of \"Mercia Asset Management PLC\" in the fiscal year 2021?",
-        "category": "retrieval",
-        "answer_type": "number",
-        "expected": [
-          23410000
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"First Mid Bancshares, Inc.\" spend on risk management compared to \"QUIDELORTHO CORPORATION\" in June 30, 2022?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total liabilities: \"DouYu International Holdings Limited\", \"CrossFirst Bank\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "name",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Return on Assets (ROA) of \"ENRG ELEMENTS LIMITED\" in June 30, 2022?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          -45.42,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"Oesterreichische Kontrollbank\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Sensata\" spend on risk management compared to \"Holley Inc.\" in June 30, 2022?",
-        "category": "other",
-        "answer_type": "number",
-        "expected": [
-          "N/A",
-          0
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher free cash flow: \"BAKER STEEL RESOURCES TRUST LIMITED\", \"Safe & Green Holdings Corp.\" or \"PowerFleet, Inc.\", in the fiscal year 2021?",
-        "category": "other",
-        "answer_type": "name",
-        "expected": [
-          "BAKER STEEL RESOURCES TRUST LIMITED",
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the Operating Margin of \"Mercia Asset Management PLC\" in June 30, 2021?",
-        "category": "tricky",
-        "answer_type": "number",
-        "expected": [
-          177.06,
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "What was the free cash flow of \"JOURNEY MEDICAL CORPORATION\" in the fiscal year 2023?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "How much more did \"Laserbond\" spend on R&D compared to \"PowerFleet, Inc.\" in June 30, 2021?",
-        "category": "hallucination",
-        "answer_type": "number",
-        "expected": [
-          "N/A"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": true,
-        "error": ""
-      },
-      {
-        "question": "Which company had a higher total assets: \"MITSUI O.S.K. LINES\", \"ENRG ELEMENTS LIMITED\" or \"First Mid Bancshares, Inc.\", in the fiscal year 2021?",
-        "category": "compare",
-        "answer_type": "name",
-        "expected": [
-          "MITSUI O.S.K. LINES"
-        ],
-        "predicted": "N/A",
-        "refused": true,
-        "correct": false,
         "error": ""
       }
     ]
