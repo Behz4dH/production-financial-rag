@@ -97,7 +97,7 @@
         "expected": [
           6744215000
         ],
-        "predicted": "$ 6,744,215",
+        "predicted": "The total assets of 'First Mid Bancshares, Inc.' in the fiscal year 2022 were $6,744,215.",
         "refused": false,
         "correct": true,
         "error": ""
@@ -208,7 +208,7 @@
         "expected": [
           688415000
         ],
-        "predicted": "688.4 million",
+        "predicted": "688,415",
         "refused": false,
         "correct": true,
         "error": ""
@@ -220,7 +220,7 @@
         "expected": [
           6744215000
         ],
-        "predicted": "$ 6,744,215",
+        "predicted": "The total assets of 'First Mid Bancshares, Inc.' in the fiscal year 2022 were $6,744,215.",
         "refused": false,
         "correct": true,
         "error": ""
