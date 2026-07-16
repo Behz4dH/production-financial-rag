@@ -18,7 +18,7 @@ def _items():
 
 def _answer_fn(question, mode, deps):
     if "petra" in question:
-        return RAGAnswer(answer="88.1", refused=False)
+        return RAGAnswer(answer="88.1 million", refused=False)
     return RAGAnswer(answer="N/A", refused=True)
 
 

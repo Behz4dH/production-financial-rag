@@ -17,12 +17,12 @@ def _items():
 def test_run_mode_scores_each_item():
     def fake_answer(question, mode, deps):
         if "petra" in question:
-            return RAGAnswer(answer="88.1", refused=False)
+            return RAGAnswer(answer="88.1 million", refused=False)
         return RAGAnswer(answer="N/A", refused=True)
 
     rows = run_mode(_items(), "hybrid", deps=None, answer_fn=fake_answer)
     assert len(rows) == 2
-    assert rows[0].correct is True   # 88.1 ≈ 88,100,000
+    assert rows[0].correct is True   # "88.1 million" ≈ 88,100,000
     assert rows[1].correct is True   # refusal matches N/A
 
 

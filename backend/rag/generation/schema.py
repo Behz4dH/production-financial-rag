@@ -24,7 +24,9 @@ class AnswerDraft(BaseModel):
                            "actually match and why -- or, if refusing, which excerpts were "
                            "near-misses and why each falls short. Never derive or estimate a "
                            "figure that isn't directly stated.")
-    answer: str = Field(description="The answer, or 'N/A' if unsupported by the context")
+    answer: str = Field(description="The answer, stated with the unit and scale the source "
+                        "gives it (e.g. '$688,415 thousand', '79.4 pence'), or 'N/A' if "
+                        "unsupported by the context")
     refused: bool = Field(default=False, description="True if the excerpts don't answer it")
     confidence: str = Field(default="medium", description="high, medium, or low")
 

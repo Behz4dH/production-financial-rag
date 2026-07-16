@@ -25,6 +25,14 @@ def test_number_matches_across_scales():
     assert not number_matches(88.1, 999)
 
 
+def test_number_matches_upscale_can_be_disallowed():
+    # Inflating a small prediction to meet a large golden needs allow_upscale;
+    # a fully-written-out prediction against an abbreviated golden never does.
+    assert number_matches(88.1, 88100000, allow_upscale=False) is False
+    assert number_matches(88100000, 88.1, allow_upscale=False) is True
+    assert number_matches(88100000, 88100000, allow_upscale=False) is True
+
+
 def test_number_matches_zero_golden_no_false_positive():
     assert number_matches(0, 0) is True
     # previously true due to the 1e-9 scale fallback denom=1.0
@@ -49,8 +57,27 @@ def test_refusal_correct_when_na_acceptable():
 
 def test_numeric_answer_correct_within_scale():
     item = GoldenItem(question="q", answer_type="number", answers=[88100000], category="retrieval")
-    assert is_correct(_ans(answer="88.1"), item) is True
-    assert is_correct(_ans(answer="999"), item) is False
+    assert is_correct(_ans(answer="$88.1 million"), item) is True
+    assert is_correct(_ans(answer="999 million"), item) is False
+
+
+def test_bare_number_is_not_rescued_by_scale_shift():
+    # "total assets were $6,744,215" (thousands, unstated) against golden
+    # 6,744,215,000 is a wrong answer as written — a scale shift is accepted
+    # only when the prediction states the scale it's shifted by.
+    item = GoldenItem(question="q", answer_type="number",
+                      answers=[6744215000], category="retrieval")
+    assert is_correct(_ans(answer="Total assets were $6,744,215."), item) is False
+    assert is_correct(_ans(answer="$6,744,215 thousand"), item) is True
+    assert is_correct(_ans(answer="$6.74 billion"), item) is True
+    assert is_correct(_ans(answer="6,744,215,000"), item) is True  # exact, no cue needed
+
+
+def test_full_digit_answer_matches_abbreviated_golden_without_cue():
+    # The golden may be authored in shorthand; a fully-written-out prediction
+    # is unambiguous and needs no scale word.
+    item = GoldenItem(question="q", answer_type="number", answers=[88.1], category="retrieval")
+    assert is_correct(_ans(answer="88,100,000"), item) is True
 
 
 def test_multi_valid_answer_either_matches():
@@ -75,7 +102,7 @@ def test_numeric_answer_matches_via_prose_not_just_first_number():
 def test_numeric_answer_matches_string_typed_golden():
     # Golden value authored as a JSON string must still be coerced and compared.
     item = GoldenItem(question="q", answer_type="number", answers=["88100000"], category="retrieval")
-    assert is_correct(_ans(answer="88.1"), item) is True
+    assert is_correct(_ans(answer="88.1 million"), item) is True
 
 
 def test_name_match_bridges_aliases_of_same_entity():
