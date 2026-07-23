@@ -34,9 +34,10 @@ overall accuracy may drop at most 3% per mode (one flipped question of 40 —
 slack for LLM nondeterminism). Improvements pass; committing the updated
 baseline is how the bar gets raised, so a raise is itself code-reviewed.
 
-In CI (`.github/workflows/`): `ci.yml` runs the test suite on every push/PR;
-`eval-gate.yml` rebuilds the index and runs the real benchmark + gate on PRs
-that touch pipeline code (needs the `GROQ_API_KEY` repository secret).
+This is currently a local gate (`make gate`), run by hand before merging
+pipeline-affecting changes. Wiring it into CI (a workflow that reruns
+`make eval && make gate` on PRs touching `rag/` or `eval/`, gated on a
+`GROQ_API_KEY` repository secret) is a natural next step, not yet done.
 
 ## Dashboard quickstart
 

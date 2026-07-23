@@ -31,3 +31,6 @@ dist/
 # Conversation exports (a pattern with no "/" matches at any depth, not just root)
 *-can-you-check-out-*.txt
 20??-??-??-*.txt
+
+# Internal build-planning docs (not part of the public-facing project)
+docs/superpowers/
