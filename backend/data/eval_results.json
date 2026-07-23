@@ -2,15 +2,15 @@
   "modes": {
     "basic": {
       "overall": {
-        "correct": 7,
+        "correct": 6,
         "total": 10,
-        "accuracy": 0.7
+        "accuracy": 0.6
       },
       "by_category": {
         "retrieval": {
-          "correct": 3,
+          "correct": 2,
           "total": 4,
-          "accuracy": 0.75
+          "accuracy": 0.5
         },
         "compare": {
           "correct": 0,
@@ -31,15 +31,15 @@
     },
     "hybrid": {
       "overall": {
-        "correct": 10,
+        "correct": 9,
         "total": 10,
-        "accuracy": 1.0
+        "accuracy": 0.9
       },
       "by_category": {
         "retrieval": {
-          "correct": 4,
+          "correct": 3,
           "total": 4,
-          "accuracy": 1.0
+          "accuracy": 0.75
         },
         "compare": {
           "correct": 1,
@@ -85,7 +85,7 @@
         "expected": [
           688415000
         ],
-        "predicted": "688.4 million",
+        "predicted": "$688,415 thousand",
         "refused": false,
         "correct": true,
         "error": ""
@@ -97,9 +97,9 @@
         "expected": [
           6744215000
         ],
-        "predicted": "The total assets of 'First Mid Bancshares, Inc.' in the fiscal year 2022 were $6,744,215.",
+        "predicted": "$ 6,744,215",
         "refused": false,
-        "correct": true,
+        "correct": false,
         "error": ""
       },
       {
@@ -196,7 +196,7 @@
           3770600000,
           5679500000
         ],
-        "predicted": "The intangible assets of TransUnion in the fiscal year 2021 were $3,770.6 million.",
+        "predicted": "$3,770.6 million",
         "refused": false,
         "correct": true,
         "error": ""
@@ -208,7 +208,7 @@
         "expected": [
           688415000
         ],
-        "predicted": "688,415",
+        "predicted": "$688,415 thousand",
         "refused": false,
         "correct": true,
         "error": ""
@@ -220,9 +220,9 @@
         "expected": [
           6744215000
         ],
-        "predicted": "The total assets of 'First Mid Bancshares, Inc.' in the fiscal year 2022 were $6,744,215.",
+        "predicted": "$ 6,744,215",
         "refused": false,
-        "correct": true,
+        "correct": false,
         "error": ""
       },
       {
@@ -268,7 +268,7 @@
         "expected": [
           79.4
         ],
-        "predicted": "79.4",
+        "predicted": "79.4 pence",
         "refused": false,
         "correct": true,
         "error": ""
